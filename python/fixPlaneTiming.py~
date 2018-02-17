@@ -1,0 +1,55 @@
+#
+# fixPlaneTiming.py
+#
+
+# WIC 2018-02-17
+
+# Hack to correct the time keywords in v404 Cyg single-plane fits
+# files (there was an error converting to JD when we split datacubes
+# into planes on the mountain).
+
+# Note to self: do this procedurally (rather than object oriented) to
+# be easier to follow.
+
+from astropy.io import fits
+import os
+
+def fixHeader(pathIn='./tmp_V404Cyg_52_proc_001.fits', \
+                  iPlane=-1, \
+                  pathOut='', stemOut='TFIX', \
+                  moveBackup=True, dirBackup='./UNCORRECTED', \
+                  keyStart='HJD', keyEnd='HJDEND', keyExptime='KCT', ,\
+                  keyJD='JD', dtOverheads=0.0):
+
+    """Corrects the header for an MDM tmp_plane.fits file. Written to
+    be used conveniently AFTER the files have been moved into place. 
+
+    pathIn = path to input fits file. Can be gzipped.
+
+    iPlane = which plane this is (counting from 1). If <0, will work
+    this out from the filename.
+
+    pathOut = path for corrected FITS file. If blank, will be
+    constructed from the input filename and the 'stemOut' argument
+
+    stemOut = string to append to the output filename
+
+    moveBackup = True -- move the original file to a backup subdirectory?
+
+    dirBackup = subdirectory to move the uncorrected files. If not
+    present, will be created.
+
+    keyStart, keyExptime, keyEnd are the header keywords for the time
+    at start, the cycle time, and the end HDD (the latter used for
+    checking).
+
+    keyJD = header keyword for the un-barycenter corrected julian date
+
+    dtOverheads = overhead time per cycle to add to the keyExptime to
+    get cycle time (default 0.0s)
+
+
+
+    """
+
+    

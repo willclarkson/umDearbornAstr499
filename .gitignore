@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+*.pyc
+
+# uncompressed fits files (to guard against too-large files)
+*.fits
+
 # C extensions
 *.so
 

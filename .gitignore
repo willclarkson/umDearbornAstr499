@@ -5,6 +5,8 @@ __pycache__/
 
 *.pyc
 
+*~
+
 # uncompressed fits files (to guard against too-large files)
 *.fits
 

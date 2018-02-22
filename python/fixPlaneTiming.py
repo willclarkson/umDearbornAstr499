@@ -18,6 +18,9 @@
 # for the wrapper
 import glob
 
+# for fancy screen output
+import sys
+
 from astropy.io import fits
 import os
 
@@ -25,7 +28,7 @@ import os
 from astropy import time, coordinates as coord, units as u
 
 def fixAll(srchString='tmp*_proc_0??.fits*', srchDir='./', \
-               strAvoid='TFIX'):
+               strAvoid='TFIX', Verbose=True):
 
     """Finds fits files in the current directory and corrects
     them. Example call:
@@ -38,7 +41,9 @@ def fixAll(srchString='tmp*_proc_0??.fits*', srchDir='./', \
     srchDir = directory to search for input files
 
     strAvoid = ignore files containing this string (useful if you
-    don't want to re-correct output found in the input directory)"""
+    don't want to re-correct output found in the input directory)
+
+    Verbose = show screen output?"""
 
     lToFix = glob.glob('%s/%s' % (srchDir, srchString))
     
@@ -49,11 +54,17 @@ def fixAll(srchString='tmp*_proc_0??.fits*', srchDir='./', \
         if pathIn.find(strAvoid) > -1:
             continue
 
+        # print screen output
+        if Verbose:
+            sys.stdout.write("\r processing path %s ..." % (pathIn))
+            sys.stdout.flush()
+
         sStatus = fixHeader(pathIn)
 
         if len(sStatus) < 1:
-            print "fixPlaneTiming.fixAll WARN - problem with file %s" \
-                % (pathIn)
+            if Verbose:
+                print "fixPlaneTiming.fixAll WARN - problem with file %s" \
+                    % (pathIn)
         else:
             iDone = iDone + 1
 

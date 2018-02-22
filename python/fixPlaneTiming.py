@@ -303,7 +303,13 @@ def fixHeader(pathIn='./tmp_V404Cyg_52_proc_001.fits', \
             pathOut = '%s.gz' % (pathOut)
 
     # by this point we can write output!
-    fits.writeto(pathOut, aImg, header, overwrite=True, output_verify="fix")
+
+    # 2018-02-22 - dang astropy changing the overwrite keyword name
+    # between versions...
+    if os.access(pathOut, os.R_OK):
+        os.remove(oathOut)
+    fits.writeto(pathOut, aImg, header, output_verify="fix")
+
 
     # ensure the output directory is present
     if moveBackup:

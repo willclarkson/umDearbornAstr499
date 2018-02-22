@@ -28,7 +28,7 @@ import os
 from astropy import time, coordinates as coord, units as u
 
 def fixAll(srchString='tmp*_proc_0??.fits*', srchDir='./', \
-               strAvoid='TFIX', Verbose=True, testingPrint=True):
+               strAvoid='TFIX', Verbose=True, testingPrint=False):
 
     """Finds fits files in the current directory and corrects
     them. Example call:

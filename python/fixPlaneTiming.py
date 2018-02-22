@@ -265,7 +265,7 @@ def fixHeader(pathIn='./tmp_V404Cyg_52_proc_001.fits', \
             didBary = True
 
         else:
-            jdStart = np.copy(dayStart)
+            jdStart = dayStart*1.0
 
     # now update the FITS header. First ensure the datacube parameters
     # are written

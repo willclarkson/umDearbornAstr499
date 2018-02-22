@@ -232,6 +232,8 @@ def fixHeader(pathIn='./tmp_V404Cyg_52_proc_001.fits', \
     except:
         doHJDtoJD = False
 
+    didBary = False  # flag: did we do the barycentric correction?
+
     if doHJDtoJD:
         targLocation = coord.SkyCoord(sRA, sDE, \
                                           unit=(u.hourangle, u.deg), \
@@ -249,12 +251,21 @@ def fixHeader(pathIn='./tmp_V404Cyg_52_proc_001.fits', \
         # estimate the barycentric correction at this location. Note
         # there's an inconsistency between the keyword name ("HJD")
         # and the comment ("barycentric"). Trust the comment for now.
-        ltt_bary = timeObj.light_travel_time(targLocation, 'barycentric')
 
-        # we SUBTRACT this - in days - off the HJDStart to get the JDstart
-        timeObj_atObs_approx = timeObj - ltt_bary
+        # 2018-02-22 - if the machine uses an older astropy version,
+        # the light_travel_time() method might not be present. If so,
+        # exit gracefully
+        if __hasattr__(timeObj,'light_travel_time'):
+            ltt_bary = timeObj.light_travel_time(targLocation, 'barycentric')
 
-        jdStart = timeObj_atObs_approx.jd
+            # we SUBTRACT this - in days - off the HJDStart to get the JDstart
+            timeObj_atObs_approx = timeObj - ltt_bary
+
+            jdStart = timeObj_atObs_approx.jd
+            didBary = True
+
+        else:
+            jdStart = np.copy(dayStart)
 
     # now update the FITS header. First ensure the datacube parameters
     # are written
@@ -266,6 +277,9 @@ def fixHeader(pathIn='./tmp_V404Cyg_52_proc_001.fits', \
     header[keyStart] = dayStart
     header[keyEnd] = dayEnd
     header[keyPlaneOut] = iFound
+
+    header['didBARY'] = ( int(didBary), 'HJD barycentric un-done for JD' )
+    
 
     # If we made it, update the JD keyword
     if jdStart > 0:

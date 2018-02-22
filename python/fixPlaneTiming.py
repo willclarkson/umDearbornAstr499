@@ -284,14 +284,14 @@ def fixHeader(pathIn='./tmp_V404Cyg_52_proc_001.fits', \
 
     # now update the FITS header. First ensure the datacube parameters
     # are written
-    header[keyStartCube] = hjdStart
+    header[keyStartCube] = (hjdStart, 'HJD start of parent datacube')
     if hjdEnd > 0:
-        header[keyEndCube] = hjdEnd
+        header[keyEndCube] = (hjdEnd, 'HJD end of parent datacube')
     
     # now update the HJD and HJDEND keywords
     header[keyStart] = dayStart
     header[keyEnd] = dayEnd
-    header[keyPlaneOut] = iFound
+    header[keyPlaneOut] = ( iFound, 'Plane number, counting from 0')
 
     header['didBARY'] = ( int(didBary), 'HJD barycentric un-done for JD' )
     

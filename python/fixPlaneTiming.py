@@ -255,7 +255,7 @@ def fixHeader(pathIn='./tmp_V404Cyg_52_proc_001.fits', \
         # 2018-02-22 - if the machine uses an older astropy version,
         # the light_travel_time() method might not be present. If so,
         # exit gracefully
-        if __hasattr__(timeObj,'light_travel_time'):
+        if hasattr(timeObj,'light_travel_time'):
             ltt_bary = timeObj.light_travel_time(targLocation, 'barycentric')
 
             # we SUBTRACT this - in days - off the HJDStart to get the JDstart

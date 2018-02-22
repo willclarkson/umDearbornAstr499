@@ -28,7 +28,7 @@ import os
 from astropy import time, coordinates as coord, units as u
 
 def fixAll(srchString='tmp*_proc_0??.fits*', srchDir='./', \
-               strAvoid='TFIX', Verbose=True):
+               strAvoid='TFIX', Verbose=True, testingPrint=True):
 
     """Finds fits files in the current directory and corrects
     them. Example call:
@@ -58,6 +58,10 @@ def fixAll(srchString='tmp*_proc_0??.fits*', srchDir='./', \
         if Verbose:
             sys.stdout.write("\r processing path %s ..." % (pathIn))
             sys.stdout.flush()
+
+        # break out if all we're doing is testing the screen output
+        if testingPrint:
+            continue
 
         sStatus = fixHeader(pathIn)
 

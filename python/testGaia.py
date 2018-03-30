@@ -4,7 +4,10 @@
 
 # 2018-03-30 WIC - utility to extract gaia data about selected
 # location and convert to astropy table. Hacked out of code originally
-# for project GO-12020.
+# for project GO-12020, with some parts refactored and expanded to
+# take advantage of Astropy's nice and flexible "Angle" methods
+# (e.g. if we are asking for regions in arcminutes but the limits are
+# expressed in degrees, etc.).
 
 # for low-tech timing of the query
 import time, os

@@ -1,6 +1,6 @@
-##2018-03-30 - README##
+## 2018-03-30 - README ##
 
-###Current contents###
+### Current contents ###
 
 * **fixPlaneTiming.py** - quick method to repair header time keywords for the v404 Cyg project
 

@@ -288,7 +288,7 @@ def queryGaia(ra=2.65, dec=-3.25, srcCat='gaia', \
                   wid=5., hgt=5., \
                   boxUnits='arcmin', \
                   frame='galactic', \
-                  wipeAfter=False, Verbose=True):
+                  wipeAfter=False, Verbose=True, forceQuery=True):
 
     """Wrapper to query the Gaia source catalog. 
 
@@ -313,7 +313,8 @@ def queryGaia(ra=2.65, dec=-3.25, srcCat='gaia', \
     # runOnInit=False in the call below.
     GC = GaiaCat(ra, dec, wid, hgt, frame, maxRows=maxRows, \
                      boxUnits=boxUnits, \
-                     srcCat=srcCat, Verbose=Verbose)
+                     srcCat=srcCat, Verbose=Verbose, \
+                     forceQuery=forceQuery)
     
     # now do the query - UPDATE: replaced with a wrapper
     GC.doQueryWithCheck()

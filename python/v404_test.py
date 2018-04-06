@@ -1,0 +1,657 @@
+# All imports from terminal first
+
+import matplotlib.pylab as plt
+plt.ion()
+plt.style.use('ggplot')
+from astropy.table import Table
+import numpy as np
+from scipy import optimize
+import sys
+from astropy.stats import sigma_clip
+
+from astroML.time_series import lomb_scargle, lomb_scargle_bootstrap
+
+# Reading the table
+
+# t1 = Table.read('2018-03-09_v404CygPhotom_flag1.csv', format='ascii.csv') #Assuming the file is run from the Desktop, since that is where the script is saved
+# t2 = Table.read('2018-03-09_v404CygPhotom_flag2.csv', format='ascii.csv')
+# t3 = Table.read('2018-03-09_v404CygPhotom_flag3.csv', format='ascii.csv')
+# t12 = Table.read('onesandtwos.csv', format='ascii.csv')
+# t123 = Table.read('allflags.csv', format='ascii.csv')
+# t7 = Table.read('onesandtwos_7days.csv', format='ascii.csv')
+# t121 = Table.read('ones_a12.csv', format='ascii.csv')
+# t122 = Table.read('twos_a12.csv', format='ascii.csv')
+t1212 = Table.read('onesandtwos_a12.csv', format='ascii.csv')
+
+useFlag = 12
+# if useFlag == 1:
+# 		tbl = t1
+# 		flag = '1'
+# if useFlag == 2:
+# 		tbl = t2
+# 		flag = '2'
+# if useFlag == 3:
+# 		tbl = t3
+# 		flag = '3'
+# if useFlag == 12:
+# 		tbl = t12
+# 		flag = tbl['Flag']
+# if useFlag == 123:
+# 		tbl = t123
+# 		flag = tbl['Flag']
+
+dy = t1212['rel_flux_err_T1']
+jd = t1212['J.D.-2400000']
+mag = t1212['Flux_V404']
+flag = t1212['Flag']
+
+def go(pctile=10., iCheck=1, useMags=False, clipOutliers=False, oldAperture=False, useFlag=useFlag, \
+	tStart=-1e9, tEnd=57992.0, binTime=0.0034722, bootstrapping=False, errorbars=True):
+	if oldAperture == True:
+		if useFlag == 1:
+			tbl = t1
+			flag = '1'
+		if useFlag == 2:
+			tbl = t2
+			flag = '2'
+		if useFlag == 3:
+			tbl = t3
+		formatlag = '3'
+		if useFlag == 12:
+			tbl = t12
+			flag = tbl['Flag']
+		if useFlag == 123:
+			tbl = t123
+			flag = tbl['Flag']
+		if useFlag == 7:
+			tbl = t7
+			flag = tbl['Flag']		
+	else:
+		if useFlag == 1:
+			tbl = t121
+			flag = '1'
+		if useFlag == 2:
+			tbl = t122
+			flag = '2'
+		if useFlag == 12:
+			tbl = t1212
+			flag = tbl['Flag']
+	if useFlag < 4:
+		flagColor = 'red'
+	else:
+		flagColor = flag
+
+#Trying, but failing, to plot values by flag...
+	##if flag == 1:
+		##flagColor = 'green'
+	##elif flag == 2:
+		##flagColor = 'orange'
+	##elif flag == 3:
+		##flagColor = 'red'
+
+	jd = tbl['J.D.-2400000']
+	mag = tbl['Average Mag(V404)']
+	dy = 1.086 * tbl['rel_flux_err_T1']
+	num = len(mag)
+
+	if not useMags:
+		mag = tbl['rel_flux_T1'] 
+		dy = tbl['rel_flux_err_T1']
+
+# This was my (failed) attempt to use the lambda function for y like in the example
+
+## y = lambda p, x: ((p[0]*np.sin(((2*np.pi*x)+p[1])/p[2]))+(p[3]*np.sin(((2*np.pi*x)+p[1]/0.5*p[2]))))+p[4]
+
+# Initial Guess for Parameters
+
+	a1 = 0.1 # First Amplitude
+	phi = -4.0 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift
+	orbital_period = 6.4714 # According to Pavlenko et al (1996)
+	a2 = 0.2 # Second Amplitude
+	diff = 16.6 # Shift due to average magnitude
+
+	p = [a1, phi, orbital_period, diff, a2] #This is for my attempt (see 35)
+
+	##p = [a1, phi, orbital_period, diff] #for the equation in line 33
+
+	pGuess = np.copy(p)
+
+	# make bounds for the chunks
+	tBounds = makeBounds(jd)
+	chunks = classifyChunks(jd, tBounds)
+
+	tLow, yLow = assignLowerEnvelope(jd, mag, chunks, pctile, useMags=useMags, clipOutliers=clipOutliers)
+
+	if iCheck > -1:
+		bCheck = chunks == iCheck	
+		showHist(mag[bCheck])
+
+ 	p0 = np.array([a1, phi, orbital_period, a2, diff])
+ 	p1, success = optimize.leastsq(errFunc, pGuess[:], args=(jd, mag), maxfev=int(1e6), ftol=1e-10)
+ 	pLow, successLow = optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), maxfev=int(1e6), ftol=1e-10)
+
+ 	# by this point we have the ellipsoidal modulation fit to the dataset
+ 	ySub = mag - twoSine(pLow, jd)
+
+ 	# by THIS point we have our ellipsoidal-subtracted lightcurve. Now let's try binning this...
+ 	tBin, fBin, uBin, nBin = BinData(jd, mag, dy, tStart=tStart, tEnd=tEnd, BinTime=binTime, plotDBG=True)
+
+ 	print "binned arrays shape, nMin, nMax:", np.shape(tBin), np.min(nBin), np.max(nBin)
+
+ 	# if you want to subtract the ellipsoidal modulation from the binned data, you might do:
+ 	fBinSub = fBin - twoSine(pLow, tBin)
+
+ 	orbital_period = 6.4714
+ 	period = np.linspace(0.0005, orbital_period, 1000)
+ 	omega = 2 * np.pi / period
+ 	binnedLS = lomb_scargle(tBin, fBinSub, uBin, omega, generalized=False)
+ 	if bootstrapping == True:
+ 		Dbin = lomb_scargle_bootstrap(tBin, fBinSub, uBin, omega, generalized=False, N_bootstraps=1000, random_state=0)
+ 		sig1b, sig5b = np.percentile(Dbin, [99,95])
+
+
+ 	fig4 = plt.figure(4)
+ 	fig4.clf()
+ 	ax4 = fig4.add_subplot(111)
+ 	ax4.plot(tBin, fBinSub, 'ko')
+ 	plt.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
+
+ 	fig5 = plt.figure(5)
+ 	fig5.clf()
+	#ax5 = fig5.add_subplot(111, xscale='log', yscale='log')
+	ax5 = fig5.add_subplot(111)
+	ax5.plot(period, binnedLS, 'ko', ls='-', ms=4)
+	if bootstrapping == True:
+	   ax5.plot([period[0], period[-1]], [sig1b, sig1b], ':', c='red') #sig1 means percentile is '99'
+	   ax5.plot([period[0], period[-1]], [sig5b, sig5b], ':', c='green') #sig5 means percentile is '95'
+
+ 	##period = orbital_period
+ 	period = np.linspace(0.0005, orbital_period, 1000)
+
+ 	# let's try logspace. Here we specify the limits in terms of a power of ten.
+ 	period = np.logspace(-3., 0.5, 1000)
+ 	dy = tbl['rel_flux_err_T1']
+ 	omega = 2 * np.pi / period
+	# 	flicker = lomb_scargle(period, ySub, dy, omega, generalized=False)
+ 	flicker = lomb_scargle(jd, ySub, dy, omega, generalized=False)
+ 	num2 = len(flicker)
+ 	if bootstrapping == True:
+ 		D = lomb_scargle_bootstrap(jd, ySub, dy, omega, generalized=False, N_bootstraps=1000, random_state=0)
+ 		sig1, sig5 = np.percentile(D, [99,95])
+
+ 		#Attempting to plot the periodogram
+
+	fig3 = plt.figure(3)
+	fig3.clf()
+	#ax3 = fig3.add_subplot(111, xscale='log', yscale='log')
+	ax3 = fig3.add_subplot(111)
+
+	ax3.plot(period, flicker, 'ko', ls='-', ms=4)
+	if bootstrapping == True:
+		ax3.plot([period[0], period[-1]], [sig1, sig1], ':', c='red') #sig1 means percentile is '99'
+		ax3.plot([period[0], period[-1]], [sig5, sig5], ':', c='green') #sig5 means percentile is '95'
+
+ 	magsNoise = np.random.normal(size=np.size(jd))*dy
+ 	flickNoise = lomb_scargle(jd, magsNoise, dy, omega, generalized=False)
+
+    #Plot the LS
+	
+	fig6 = plt.figure(6)
+	fig6.clf()
+	#ax5 = fig5.add_subplot(111, xscale='log', yscale='log')
+	ax6 = fig6.add_subplot(111)
+	 	# Get Significance via bootstrap
+ 	if bootstrapping == True:
+ 		DNoise = lomb_scargle_bootstrap(jd, magsNoise, dy, omega, generalized=False, N_bootstraps=1000, random_state=0)
+		sig1N, sig5N = np.percentile(DNoise, [99,95])
+
+
+	ax6.plot(period, flickNoise, 'ko', ls='-', ms=4)
+	if bootstrapping == True:
+		ax6.plot([period[0], period[-1]], [sig1N, sig1N], ':', c='red') #sig1 means percentile is '99'
+		ax6.plot([period[0], period[-1]], [sig5N, sig5N], ':', c='green') #sig5 means percentile is '95'
+
+	# Plot the random noise
+	fig7 = plt.figure(7)
+	fig7.clf()
+	ax7 = fig7.add_subplot(111)
+
+	ax7.scatter(jd, magsNoise)
+
+
+	#Let's try binning the random noise
+	tBinNoise, fBinNoise, uBinNoise, nBinNoise = BinData(jd, magsNoise, dy, tStart=tStart, tEnd=tEnd, BinTime=binTime, plotDBG=True)
+ 	print "binned arrays shape, nMinNoise, nMaxNoise:", np.shape(tBinNoise), np.min(nBinNoise), np.max(nBinNoise)
+
+ 	#Attempting to plot the binned noise
+
+ 	fig8 = plt.figure(8)
+ 	fig8.clf()
+ 	ax8 = fig8.add_subplot(111)
+ 	ax8.plot(tBinNoise, fBinNoise, 'ko')
+ 	plt.errorbar(tBin, fBinNoise, yerr=uBinNoise, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
+
+ 	#Lomb-Scargle for binned noise
+
+ 	orbital_period = 6.4714
+ 	period = np.linspace(0.0005, orbital_period, 1000)
+ 	omega = 2 * np.pi / period
+ 	binnedLSNoise = lomb_scargle(tBinNoise, fBinNoise, uBinNoise, omega, generalized=False)
+ 	if bootstrapping == True:
+ 		Dnb = lomb_scargle_bootstrap(tBinNoise, fBinNoise, uBinNoise, omega, generalized=False, N_bootstraps=1000, random_state=0)
+ 		sig1nb, sig5nb = np.percentile(Dnb, [99,95])
+
+
+ 	#Plot this
+
+ 	fig9 = plt.figure(9)
+ 	fig9.clf()
+ 	ax9 = fig9.add_subplot(111)
+
+ 	ax9.plot(period, binnedLSNoise, 'ko', ls='-', ms=4)
+ 	if bootstrapping == True:
+ 		ax9.plot([period[0], period[-1]], [sig1nb, sig1nb], ':', c='red') #sig1 means percentile is '99'
+		ax9.plot([period[0], period[-1]], [sig5nb, sig5nb], ':', c='green') #sig5 means percentile is '95'
+
+
+    #blah = optimize.leastsq(errFunc, p0[:], args=(Tx, tX), full_output=True)
+    #print blah
+
+ 	##print p1, success
+ 	##print pLow, successLow
+
+	yPred = twoSine(p1, jd)
+	yPredLow = twoSine(pLow, jd)
+
+	#Generating random points throughout the best fit line
+	#num_points = 1401
+	#randfunc = 0.0393104 * np.sin(2.0*np.pi*jd/6.47155519  + -1.68599974)+16.5961013 + 0.15487321 * np.sin(4.0*np.pi*jd/6.47155519 + -1.68599974)*np.random.rand(num_points)
+
+	xGrid = np.linspace(57985., 57991., 1000)
+	#randfunc = twoSine(pLow,xGrid)
+
+	# Plotting the v404 data and the best fit line
+
+	##print tBounds
+#	print np.shape(jd)
+	#print np.shape(chu#nks)
+	#return
+
+	plt.figure(1)
+	plt.clf()
+	#plt.scatter(jd, mag, alpha=0.5, color='darkmagenta')
+	dum = plt.scatter(jd, mag, alpha=0.5, c=flagColor, s=16, cmap='PuOr_r')
+	plt.plot(tLow, yLow, 'ko', ms=7, zorder=25)
+	plt.plot(xGrid, twoSine(pLow,xGrid), c='blue')
+	plt.plot(xGrid, twoSine(p1,xGrid), c='g')
+	plt.scatter(jd, ySub, c='violet', s=16)
+	if errorbars == True:
+		plt.errorbar(jd, mag, yerr=dy, fmt='o', ms=4, ecolor='0.3', alpha=0.5)
+	
+	plt.plot(jd, yPred, 'gx', lw=2, alpha=0.5, ls='-')
+	plt.plot(jd, yPredLow, 'k+', lw=2, alpha=0.5, ls='--')
+	if useFlag > 4:
+		plt.colorbar(dum)
+
+	##plt.plot(jd, 0.0393104 * np.sin(2.0*np.pi*jd/6.47155519  + -1.68599974)+16.5961013 + 0.15487321 * np.sin(4.0*np.pi*jd/6.47155519 + -1.68599974), '-b') #attempt to plot the function itself
+
+	plt.show(block=False) # block=False to ensure the terminal doesn't hang
+	#return
+
+	yLims = np.copy(plt.gca().get_ylim())
+
+	if useMags:
+		plt.ylim([yLims[1], yLims[0]])
+
+	# let's show the bounds
+	for iBound in range(np.size(tBounds)):
+		tThis = tBounds[iBound]
+		plt.plot([tThis, tThis], yLims, 'k--')
+
+
+	##ax3.show(block=False)
+
+
+def oneSine(p,x):
+
+	"""Single sine wave"""
+
+	return p[0] * np.sin(2.0*np.pi*x/p[2] + p[1]) + p[3]
+
+def twoSine(p,x):
+
+	"""'Hardcoded' double sine"""
+
+	sineOne = p[0] * np.sin(2.0*np.pi*x/p[2] + p[1]) + p[3]
+	sineTwo = p[4] * np.sin(4.0*np.pi*x/p[2] + p[1])
+
+	return sineOne + sineTwo
+
+def twiceSine(p,x, debug=False):
+
+	"""Constructs a sum of two sines from a single sine"""
+
+	pOne = p[0:4]
+	pTwo = np.copy(pOne)
+	pTwo[0] = p[-1]
+	pTwo[2] = pOne[2] * 0.5  # half the period
+	pTwo[3] = 0. # don't want to add the diff twice!
+
+	if debug:
+		print "twoSine DEBUG:"
+		print pOne
+		print pTwo
+
+	sineOne = oneSine(pOne, x)
+	sineTwo = oneSine(pTwo, x)
+
+	return sineOne + sineTwo
+
+	##return p[0] * np.sin(2.0*np.pi*(x-p[1])/p[2]) + p[3] # Taken from the termninal archive
+
+	##return ((p[0]*np.sin(((2*np.pi*x)+p[1])/p[2]))+(p[3]*np.sin(((2*np.pi*x)+p[1]/0.5*p[2]))))+p[4] # My attempt at the function on the board...
+
+def twoSine(p,x):
+
+	"""'Hardcoded' double sine"""
+
+	sineOne = p[0] * np.sin(2.0*np.pi*x/p[2] + p[1]) + p[3]
+	sineTwo = p[4] * np.sin(4.0*np.pi*x/p[2] + p[1])
+
+	return sineOne + sineTwo
+
+def errFunc(p, x, y):
+
+    """The error function"""
+
+    return twoSine(p, x) - y
+
+def makeBounds(times=np.array([]), buf=0.3, interval=1.):
+
+	"""Makes boundaries for a times array"""
+
+	tMin = np.min(times) - np.abs(buf)
+	tMax = np.max(times) + np.abs(buf) + interval
+	borders = np.arange(tMin, tMax, interval)
+
+	return borders
+
+def classifyChunks(times=np.array([]), bounds=np.array([])):
+
+	"""Classifies time points by which chunk they appear in"""
+
+	whichChunk = np.zeros(np.size(times), 'int')
+
+	for iChunk in range(np.size(bounds)-1):
+		tMin = bounds[iChunk]
+		tMax = bounds[iChunk+1]
+
+		bThis = (times >= tMin) & (times < tMax)
+
+		# now we assign the chunk ID to all the objects in this chunk
+		whichChunk[bThis] = int(iChunk)
+
+	return whichChunk
+
+def assignLowerEnvelope(t=np.array([]), y=np.array([]), chunks=np.array([]), pct=10., useMags=True, \
+		clipOutliers=True):
+
+	"""Assigns the lower envelopes to the t,y array , partitioned by chunks, using the pct'th percentile """
+
+	# we will need average time, mag arrays at least
+	nChunks = np.max(chunks) - np.min(chunks)+1
+	tEnv = np.zeros(nChunks)
+	yEnv = np.copy(tEnv)
+
+	# now we populate:
+	for iChunk in range(nChunks):
+
+		# which points are in this chunk?
+		bChunk = chunks == iChunk
+
+		if np.sum(bChunk) < 1:
+			continue
+
+		# find the envelope for THIS chunk...
+		tMed, yMed = findLowerValue(t[bChunk], y[bChunk], pct, useMags=useMags, clipOutliers=clipOutliers)
+		tEnv[iChunk] = tMed
+		yEnv[iChunk] = yMed
+
+	return tEnv, yEnv
+
+
+
+def findLowerValue(t=np.array([]), y=np.array([]), pctile=10., useMags=True, restrictMedian=False, clipOutliers=True, clipSigma=3., clipIters=3):
+
+	"""Return the pctile'th value of y"""
+
+	pctUse = np.copy(pctile)
+	if useMags:
+		pctUse = 100.-pctUse
+
+	yUse = np.copy(y)
+	if clipOutliers:
+		yClip = sigma_clip(y, sigma=clipSigma, iters=clipIters)
+		bKeep = ~yClip.mask
+		yUse = yUse[bKeep]
+
+	# find the percentile value
+	pctVal = np.percentile(yUse, pctUse)
+
+	# find all points that pass this criterion
+	if useMags:
+		bUse = y > pctVal
+	else:
+		bUse = y < pctVal
+
+	# now compute the median time
+	if restrictMedian:
+		tMed = np.median(t[bUse])
+	else:
+		tMed = np.median(t)
+
+	return tMed, pctVal	
+
+def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2, tStart=-1e9, tEnd=57992., BinTime=0.0034722, \
+	Verbose=True, plotDBG=False):
+
+    """Bin data given a time-series.
+
+    RETURNS binned time, rate, uncertainty, and the number per bin"""
+
+	# Initialize output arrays:
+    vOutTime = np.array([])
+    vOutRate = np.array([])
+    vOutError = np.array([])
+    vNPerBin = np.array([])
+
+    if np.size(vTime) < 2:
+    	return vOutTime, vOutRate, vOutError, vNPerBin
+
+    # tStart is needed; tEnd is not needed yet!
+    if tStart < -1e8:
+        tStart = np.min(vTime)
+
+    if tEnd < -1e8:
+        tEnd = np.max(vTime)
+
+    # NOTE - user might have put tend < tstart...
+    if tEnd < tStart:
+        print "BINDATA INFO: tEnd < tStart: I assume you want tStart + tEnd"
+        tEnd = tStart + tEnd
+
+    # report the settings if Verbosity is "on":
+    if Verbose:
+        print "BinData settings:"
+        print "tStart: %.3f , tEnd: %.3f" % (tStart, tEnd)
+        print "nMin = %i" % (nMin)
+        print "BinTime = %.2f" % (BinTime)
+        print "=================="
+
+    # Now we do the binning:
+    vOfBins = (vTime - tStart) / BinTime  # Which time bin does each
+                                          # point fall into?
+    lOfBins = np.asarray(vOfBins,'int') # Bin ID of each data point
+
+    # Now we calculate the average rate and error in each time
+    # bin. For each time bin, we determine (i) if any data points fall
+    # in that bin, and (ii) what the average t, rate, error values
+    # actually are. Because we calculated the bin id's per datapoint,
+    # there should not be any empty bins at all, but we'll keep the
+    # conditional in there for robustness. 
+
+    # We can also impose a minimum number of points for a
+    # "trustworthy" bin.
+    
+    # Let's only loop through the unique bins (don't want to calculate
+    # once for every point within every bin!)
+    vBinIDs = np.unique(lOfBins)
+    
+    # vector of bin start times
+    vBinTimes = vBinIDs * BinTime + tStart
+
+    # Initialize output arrays:
+    vOutTime = np.array([])
+    vOutRate = np.array([])
+    vOutError = np.array([])
+    vNPerBin = np.array([])
+
+    print np.shape(vBinIDs)
+
+    for iBin in range(0, np.size(vBinIDs)):
+        
+        # When does this bin start and end?
+        ThisTStart = vBinTimes[iBin]
+        ThisTEnd   = ThisTStart + BinTime
+
+        # ignore data > tend
+        if ThisTEnd >= tEnd:
+            continue
+
+        # all datapoints inside this bin, we average together
+        gInThisBin = np.where( (vTime >= ThisTStart) & (vTime < ThisTEnd) )[0]
+
+        if Verbose:
+            sys.stdout.write("\r DBG: this bin: %.2f, %.2f, %i" \
+                                 % (ThisTStart, ThisTEnd, np.size(gInThisBin) ) )
+            sys.stdout.flush()
+        
+        # If there are *no* datapoints in this bin, junk it and move on
+        if np.size(gInThisBin) < nMin:
+            continue  # ignore all following instructions within this
+                      # loop and go to the next bin.
+
+        # if there *are* more than nMin, we can proceed! Find the
+        # average t, r, e values.
+        ThisTimeAverage = np.mean(vTime[gInThisBin])
+        ThisRateAverage = np.mean(vRate[gInThisBin])
+        
+        # Error combination is slightly more involved - add the quad
+        # sum of the errors (remember propagation of errors from
+        # classes)
+        ThisErrorAverage = np.sqrt(np.sum(vError[gInThisBin]**2)/np.size(gInThisBin))
+
+        # Having found the average in all the inputs, stick them onto
+        # the end of the output
+        vOutTime  = np.hstack(( vOutTime, ThisTimeAverage ))
+        vOutRate  = np.hstack(( vOutRate, ThisRateAverage ))
+        vOutError = np.hstack(( vOutError, ThisErrorAverage ))
+        vNPerBin = np.hstack(( vNPerBin, np.size(gInThisBin) ))
+            
+    if Verbose:
+        print "BinData INFO - number of non-empty bins: %i" % (np.size(vOutTime) )
+        print "BinData INFO - number of input datapoints %i" % (np.size(vTime) )
+
+    return vOutTime, vOutRate, vOutError, vNPerBin
+
+    # At thsi point we've been through the loops. Now we send the
+    # three vectors we've produced to the routine that called it. So:
+    ##np.shape(vOutTime), np.shape(vOutRate), np.shape(vOutError)
+    ##np.savetxt('BLAH.lis', np.transpose(np.vstack((vOutTime,vOutRate,vOutError))))
+    ##Time, Rate, Error = np.loadtxt('BLAH.lis', unpack=True)
+    ##return vOutTime, vOutRate, vOutError, vNPerBin
+
+    # QQQ probably not a good idea to do the subtraction in the binning method... 
+
+  #   tBounds = makeBounds(vOutTime)
+  #   chunksBin = classifyChunks(vOutTime, tBounds)
+  #   chunks = classifyChunks(vOutTime, tBounds)
+  #   pctile = 10.
+  #   useMags = True
+  #   clipOutliers = True
+
+  #   a1 = 0.1 # First Amplitude
+  #   phi = -4.0 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift
+  #   orbital_period = 6.4714 # According to Pavlenko et al (1996)
+  #   a2 = 0.2 # Second Amplitude
+  #   diff = 16.6 # Shift due to average magnitude
+
+  #   tLowb, yLowb = assignLowerEnvelope(vOutTime, vOutRate, chunks, pctile, useMags=useMags, clipOutliers=clipOutliers)
+
+  #   p0b = np.array([a1, phi, orbital_period, a2, diff])
+  #   p1b, success2 = optimize.leastsq(errFunc, pGuess[:], args=(vOutTime, vOutRate), maxfev=int(1e6), ftol=1e-10)
+  #   pLow2, successLow2 = optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), maxfev=int(1e6), ftol=1e-10)
+
+ 	# # by this point we have the ellipsoidal modulation fit to the dataset
+  #   ySub2 = vOutRate - twoSine(pLow2, vOutTime)
+
+
+
+    # return vOutTime, vOutRate, vOutError, vNPerBin
+
+
+
+def showHist(x=np.array([]), bins=20, checkClipping=True):
+
+	"""Utility - show a histogram"""
+
+	if np.size(x) < 2:
+		return
+
+	# enforce the same range
+	xRange = [np.min(x), np.max(x)]
+
+	fig2 = plt.figure(2)
+	fig2.clf()
+	ax = fig2.add_subplot(111)
+	dum = ax.hist(x, bins, alpha=0.5, range=xRange)
+
+	# now we sigma-clip
+	xClip = sigma_clip(x, sigma=3, iters=2)
+	dum2 = ax.hist(xClip[~xClip.mask], bins, alpha=0.5, range=xRange)
+
+	return
+
+def genData(nPoints=1000, nNights=6, Bootstrapping=False):
+
+    """Utility to generate fake datapoints"""
+
+    # let's assume a 7-hour night
+    phs = np.random.uniform(size=nPoints) % 0.3
+    lNight = np.random.random_integers(0,nNights-1, size=nPoints)
+
+    times = np.asarray(lNight, 'float') + phs 
+
+    # just generate gaussian random noise
+    unctys = np.random.uniform(size=nPoints)*0.4
+    mags = np.random.normal(size=np.size(unctys))*unctys
+
+    # sort by time
+    lSor = np.argsort(times)
+
+    #Lomb-Scargle for this data
+
+
+
+    # to generate the random noise magnitudes:
+    # magsNoise = np.random.normal(size=np.size(time))*unctys
+
+    # orbital_period = 6.4714
+    # period = np.linspace(0.0005, orbital_period, 1000)
+    # omega = 2 * np.pi / period
+    # randLS = lomb_scargle(time, magsNoise, unctys, omega, generalized=False)
+
+
+
+
+    return times[lSor], unctys[lSor], mags[lSor]

@@ -11,43 +11,67 @@ from astropy.stats import sigma_clip
 
 from astroML.time_series import lomb_scargle, lomb_scargle_bootstrap
 
+# for testing existence of files
+import os
+
 # Reading the table
 
-# t1 = Table.read('2018-03-09_v404CygPhotom_flag1.csv', format='ascii.csv') #Assuming the file is run from the Desktop, since that is where the script is saved
-# t2 = Table.read('2018-03-09_v404CygPhotom_flag2.csv', format='ascii.csv')
-# t3 = Table.read('2018-03-09_v404CygPhotom_flag3.csv', format='ascii.csv')
-# t12 = Table.read('onesandtwos.csv', format='ascii.csv')
-# t123 = Table.read('allflags.csv', format='ascii.csv')
-# t7 = Table.read('onesandtwos_7days.csv', format='ascii.csv')
-# t121 = Table.read('ones_a12.csv', format='ascii.csv')
-# t122 = Table.read('twos_a12.csv', format='ascii.csv')
-t1212 = Table.read('onesandtwos_a12.csv', format='ascii.csv')
+## t1 = Table.read('2018-03-09_v404CygPhotom_flag1.csv', format='ascii.csv') #Assuming the file is run from the Desktop, since that is where the script is saved
+## t2 = Table.read('2018-03-09_v404CygPhotom_flag2.csv', format='ascii.csv')
+## t3 = Table.read('2018-03-09_v404CygPhotom_flag3.csv', format='ascii.csv')
+## t12 = Table.read('onesandtwos.csv', format='ascii.csv')
+## t123 = Table.read('allflags.csv', format='ascii.csv')
+## t7 = Table.read('onesandtwos_7days.csv', format='ascii.csv')
+## t121 = Table.read('ones_a12.csv', format='ascii.csv')
+## t122 = Table.read('twos_a12.csv', format='ascii.csv')
+#t1212 = Table.read('onesandtwos_a12.csv', format='ascii.csv')
 
-useFlag = 12
-# if useFlag == 1:
-# 		tbl = t1
-# 		flag = '1'
-# if useFlag == 2:
-# 		tbl = t2
-# 		flag = '2'
-# if useFlag == 3:
-# 		tbl = t3
-# 		flag = '3'
-# if useFlag == 12:
-# 		tbl = t12
-# 		flag = tbl['Flag']
-# if useFlag == 123:
-# 		tbl = t123
-# 		flag = tbl['Flag']
+#useFlag = 12
+## if useFlag == 1:
+## 		tbl = t1
+## 		flag = '1'
+## if useFlag == 2:
+## 		tbl = t2
+## 		flag = '2'
+## if useFlag == 3:
+## 		tbl = t3
+## 		flag = '3'
+## if useFlag == 12:
+## 		tbl = t12
+## 		flag = tbl['Flag']
+## if useFlag == 123:
+## 		tbl = t123
+## 		flag = tbl['Flag']
 
-dy = t1212['rel_flux_err_T1']
-jd = t1212['J.D.-2400000']
-mag = t1212['Flux_V404']
-flag = t1212['Flag']
+#dy = t1212['rel_flux_err_T1']
+#jd = t1212['J.D.-2400000']
+#mag = t1212['Flux_V404']
+#flag = t1212['Flag']
 
-def go(pctile=10., iCheck=1, useMags=False, clipOutliers=False, oldAperture=False, useFlag=useFlag, \
-	tStart=-1e9, tEnd=57992.0, binTime=0.0034722, bootstrapping=False, errorbars=True):
-	if oldAperture == True:
+def go(pctile=10., iCheck=1, useMags=True, \
+	       clipOutliers=False, \
+	       oldAperture=False, useFlag=12, \
+	       tStart=-1e9, \
+	       tEnd = 57993., \
+	       #tEnd=57992.0, \
+	       binTime=0.0034722, bootstrapping=False, \
+	       errorbars=True, \
+	       magContam=17.5, magCompar=16.07, \
+	       showPhase=True):
+
+	# WIC - put the table reading back into go, to avoid scope
+	# confusion
+
+	t1212 = Table.read('onesandtwos_a12.csv', format='ascii.csv')
+	dy = t1212['rel_flux_err_T1']
+	jd = t1212['J.D.-2400000']
+	mag = t1212['Flux_V404']
+	flag = t1212['Flag']
+
+	if oldAperture:
+		# WARN - this won't work without importing all the
+		# tables. Consider replacing the view with the loading
+		# from disk.
 		if useFlag == 1:
 			tbl = t1
 			flag = '1'
@@ -81,7 +105,7 @@ def go(pctile=10., iCheck=1, useMags=False, clipOutliers=False, oldAperture=Fals
 	else:
 		flagColor = flag
 
-#Trying, but failing, to plot values by flag...
+	# Trying, but failing, to plot values by flag...
 	##if flag == 1:
 		##flagColor = 'green'
 	##elif flag == 2:
@@ -89,20 +113,47 @@ def go(pctile=10., iCheck=1, useMags=False, clipOutliers=False, oldAperture=Fals
 	##elif flag == 3:
 		##flagColor = 'red'
 
+	# 2018-04-07 WIC - went back to the output from AIJ. This is
+	# the flux from v404 + contaminant as a multiple of the star
+	# "C4" of Casares et al. (1993).
+	relFlux = tbl['rel_flux_T1']
+	errFlux = tbl['rel_flux_err_T1']
+
+	# Since now we know the contaminant and the comparison in
+	# apparent magnitude space, we convert flux to magnitude.
+	magBoth = magCompar - 2.5*np.log10(relFlux)
+	errMag = 1.086 * errFlux
+	
+	# so, get the apparent magnitude of v404 cyg itself.
+	mag = correctMagForContaminant(magBoth, magContam)
+	dy = np.copy(errMag)
+
 	jd = tbl['J.D.-2400000']
-	mag = tbl['Average Mag(V404)']
-	dy = 1.086 * tbl['rel_flux_err_T1']
+
+	# compute the phase on the orbital ephemeris.
+	phase, u_phase = phaseFromJD(jd)
+
+	# 2018-04-07 useful to plot the RAW data. Rather than
+	# interrupt the flow, we port this off to another method.
+	showRawCounts(tbl)
+
+	#mag = tbl['Average Mag(V404)']  # superseded by the material above.
+	#dy = 1.086 * tbl['rel_flux_err_T1']
 	num = len(mag)
 
 	if not useMags:
-		mag = tbl['rel_flux_T1'] 
-		dy = tbl['rel_flux_err_T1']
+		mag = np.copy(relFlux)
+		dy = np.copy(errFlux)
+		#mag = tbl['rel_flux_T1'] 
+		#dy = tbl['rel_flux_err_T1']
 
-# This was my (failed) attempt to use the lambda function for y like in the example
+	# This was my (failed) attempt to use the lambda function for
+	# y like in the example
 
-## y = lambda p, x: ((p[0]*np.sin(((2*np.pi*x)+p[1])/p[2]))+(p[3]*np.sin(((2*np.pi*x)+p[1]/0.5*p[2]))))+p[4]
 
-# Initial Guess for Parameters
+	# y = lambda p, x: ((p[0]*np.sin(((2*np.pi*x)+p[1])/p[2]))+(p[3]*np.sin(((2*np.pi*x)+p[1]/0.5*p[2]))))+p[4]
+
+	# Initial Guess for Parameters
 
 	a1 = 0.1 # First Amplitude
 	phi = -4.0 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift
@@ -120,26 +171,54 @@ def go(pctile=10., iCheck=1, useMags=False, clipOutliers=False, oldAperture=Fals
 	tBounds = makeBounds(jd)
 	chunks = classifyChunks(jd, tBounds)
 
-	tLow, yLow = assignLowerEnvelope(jd, mag, chunks, pctile, useMags=useMags, clipOutliers=clipOutliers)
+	tLow, yLow = assignLowerEnvelope(jd, mag, chunks, pctile, \
+						 useMags=useMags, \
+						 clipOutliers=clipOutliers)
 
 	if iCheck > -1:
 		bCheck = chunks == iCheck	
 		showHist(mag[bCheck])
 
  	p0 = np.array([a1, phi, orbital_period, a2, diff])
- 	p1, success = optimize.leastsq(errFunc, pGuess[:], args=(jd, mag), maxfev=int(1e6), ftol=1e-10)
- 	pLow, successLow = optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), maxfev=int(1e6), ftol=1e-10)
+ 	p1, success = \
+	    optimize.leastsq(errFunc, pGuess[:], args=(jd, mag), \
+				     maxfev=int(1e6), ftol=1e-10)
+ 	pLow, successLow = \
+	    optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), \
+				     maxfev=int(1e6), ftol=1e-10)
 
- 	# by this point we have the ellipsoidal modulation fit to the dataset
+ 	# by this point we have the ellipsoidal modulation fit to the
+ 	# dataset
  	ySub = mag - twoSine(pLow, jd)
 
- 	# by THIS point we have our ellipsoidal-subtracted lightcurve. Now let's try binning this...
- 	tBin, fBin, uBin, nBin = BinData(jd, mag, dy, tStart=tStart, tEnd=tEnd, BinTime=binTime, plotDBG=True)
+ 	# by THIS point we have our ellipsoidal-subtracted
+ 	# lightcurve. Now let's try binning this...
+ 	tBin, fBin, uBin, nBin = \
+	    BinData(jd, mag, dy, tStart=tStart, tEnd=tEnd, \
+			    BinTime=binTime, plotDBG=True)
 
- 	print "binned arrays shape, nMin, nMax:", np.shape(tBin), np.min(nBin), np.max(nBin)
+ 	print "binned arrays shape, nMin, nMax:", \
+	    np.shape(tBin), np.min(nBin), np.max(nBin)
 
- 	# if you want to subtract the ellipsoidal modulation from the binned data, you might do:
+ 	# if you want to subtract the ellipsoidal modulation from the
+ 	# binned data, you might do:
  	fBinSub = fBin - twoSine(pLow, tBin)
+
+	# 2018-04-07 WIC - write the binned subtracted lightcurve to
+	# file to plot with other methods.
+	tExp = Table()
+	tExp['tBin'] = tBin
+	tExp['fBin'] = fBin
+	tExp['uBin'] = uBin
+	tExp['nBin'] = nBin
+	tExp['fBinSub'] = fBinSub
+	tExp['phsBin'], _  = phaseFromJD(tBin)
+
+	# export this to disk
+	filExp='v404_binSub.fits'
+	if os.access(filExp, os.R_OK):
+		os.remove(filExp)
+	tExp.write(filExp)
 
  	orbital_period = 6.4714
  	period = np.linspace(0.0005, orbital_period, 1000)
@@ -277,20 +356,48 @@ def go(pctile=10., iCheck=1, useMags=False, clipOutliers=False, oldAperture=Fals
 	#print np.shape(chu#nks)
 	#return
 
+	# 2018-04-07 WIC - modified Austin's plotting stanza to show
+	# the phase curve.
+
+	# create a few phase bins
+	phaseLow, _  = phaseFromJD(tLow)
+	phaseGrid, _  = phaseFromJD(xGrid)
+
+	# Because the phasing is not the same order as the jd, we need
+	# to sort the line-drawn objects so that we don't get
+	# crossover lines
+	lG = np.argsort(phaseGrid)
+
+	# plot by jd or by phase?
+	tSho = np.copy(jd)
+	tLo = np.copy(tLow)
+	tGrid = np.copy(xGrid)
+	cScatt = flagColor
+	if showPhase:
+		tSho = np.copy(phase)
+		tLo = np.copy(phaseLow)
+		tGrid = np.copy(phaseGrid)
+		cScatt = jd - np.min(jd)
+
 	plt.figure(1)
 	plt.clf()
 	#plt.scatter(jd, mag, alpha=0.5, color='darkmagenta')
-	dum = plt.scatter(jd, mag, alpha=0.5, c=flagColor, s=16, cmap='PuOr_r')
-	plt.plot(tLow, yLow, 'ko', ms=7, zorder=25)
-	plt.plot(xGrid, twoSine(pLow,xGrid), c='blue')
-	plt.plot(xGrid, twoSine(p1,xGrid), c='g')
-	plt.scatter(jd, ySub, c='violet', s=16)
-	if errorbars == True:
-		plt.errorbar(jd, mag, yerr=dy, fmt='o', ms=4, ecolor='0.3', alpha=0.5)
+	dum = plt.scatter(tSho, mag, \
+				  alpha=1., c=cScatt, s=16, \
+				  cmap='inferno', zorder=25, \
+				  edgecolor='0.4')
+	plt.plot(tLo, yLow, 'ko', ms=7, zorder=25)
+	plt.plot(tGrid[lG], twoSine(pLow,xGrid[lG]), c='k')
+	plt.plot(tGrid[lG], twoSine(p1,xGrid[lG]), c='g', ls='--')
+	# plt.scatter(jd, ySub, c='violet', s=16)
+	if errorbars:
+		plt.errorbar(tSho, mag, yerr=dy, fmt='o', \
+				     ms=1, ecolor='0.3', alpha=0.5, \
+				     zorder=10)
 	
-	plt.plot(jd, yPred, 'gx', lw=2, alpha=0.5, ls='-')
-	plt.plot(jd, yPredLow, 'k+', lw=2, alpha=0.5, ls='--')
-	if useFlag > 4:
+	#plt.plot(phase, yPred, 'gx', lw=2, alpha=0.5, ls='-')
+	#plt.plot(phase, yPredLow, 'k+', lw=2, alpha=0.5, ls='--')
+	if useFlag > 4 or usePhase:
 		plt.colorbar(dum)
 
 	##plt.plot(jd, 0.0393104 * np.sin(2.0*np.pi*jd/6.47155519  + -1.68599974)+16.5961013 + 0.15487321 * np.sin(4.0*np.pi*jd/6.47155519 + -1.68599974), '-b') #attempt to plot the function itself
@@ -304,10 +411,32 @@ def go(pctile=10., iCheck=1, useMags=False, clipOutliers=False, oldAperture=Fals
 		plt.ylim([yLims[1], yLims[0]])
 
 	# let's show the bounds
-	for iBound in range(np.size(tBounds)):
-		tThis = tBounds[iBound]
-		plt.plot([tThis, tThis], yLims, 'k--')
+	if not showPhase:
+		for iBound in range(np.size(tBounds)):
+			tThis = tBounds[iBound]
+			plt.plot([tThis, tThis], yLims, 'k--')
 
+	# And actually label the axes
+	if showPhase:
+		plt.xlabel('Phase (6.4714 d period)')
+	else:
+		plt.xlabel('JD - 2 400 000.0 d')
+	
+	if useMags:
+		plt.ylabel('R (mag)')
+	else:
+		plt.ylabel('Flux / F(ref)')
+	
+
+	# now set the plot limits
+	if useMags:
+		plt.ylim(17.0, 16.5)
+	if showPhase:
+		plt.xlim(0., 1.)
+	
+	# 2018-04-07 - save the plot as png, naming convention after
+	# the figure numbers in the routine.
+	plt.savefig('v404_fig1.png')
 
 	##ax3.show(block=False)
 
@@ -651,7 +780,110 @@ def genData(nPoints=1000, nNights=6, Bootstrapping=False):
     # omega = 2 * np.pi / period
     # randLS = lomb_scargle(time, magsNoise, unctys, omega, generalized=False)
 
-
-
-
     return times[lSor], unctys[lSor], mags[lSor]
+
+def correctMagForContaminant(magObs=20., magContam=17.2):
+
+	"""Utility for correcting v404 cyg's apparent magnitude for
+	contamination."""
+	
+	# Moved out into a separate method so that we can use it
+	# elsewhere (e.g. when plotting ellipsoidal modulation),
+	# possibly from other modules or the IPython command line..
+
+	# Notice that the flux of whatever reference object we used
+	# divides from both sides of the expression (flux obs = flux
+	# obj + flux contam), so we can ignore it. I break the
+	# expression into steps here to aid debugging if needed.
+
+	fObs = 10.0**(-0.4*magObs)
+	fCon = 10.0**(-0.4*magContam)
+
+	# so, what's the relative flux of the object itself?
+	return -2.5*np.log10(fObs - fCon)
+
+def phaseFromJD(jdShort=np.array([]), per=6.4714, tZer=48813.873, \
+			u_per = 0.0001, u_tZer=0.004):
+
+	"""Compute the phase from given times. Note that the times are
+	provided as JD - 2 400 000.0"""
+
+	# We'll do this in pieces so that debugging is easier:
+	dt = jdShort - tZer
+
+	# compute the phase...
+	nOrbs = dt/per
+	phs = nOrbs - np.floor(nOrbs)
+
+	# ... the fractional uncertainty in nOrbs. If it's greater
+	# than one orbit then we really don't know the phase very well
+	# at all! 
+	frac_var_nOrbs = (u_tZer/dt)**2 + (u_per/per)**2
+	u_phs = nOrbs * np.sqrt(frac_var_nOrbs)
+
+	return phs, u_phs
+
+def showRawCounts(tPhot=Table(), figNam='test_rawCounts.png'):
+
+	"""Show the raw counts"""
+
+	if len(tPhot) < 1:
+		return
+
+	jd = tPhot['J.D.-2400000']
+	countsObj = tPhot['Source-Sky_T1']
+	countsCom = tPhot['Source-Sky_C2']
+	flag = tPhot['Flag']
+
+	fig1 = plt.figure(10)
+	fig1.clf()
+	ax1=fig1.add_subplot(211)
+	ax2=fig1.add_subplot(212, sharex=ax1, sharey=ax1)
+	
+	fig1.subplots_adjust(hspace=0.05)
+
+	pSyms = ['x', '+', 'x', 'v', 's']
+	pCols = ['b', 'g', 'b', 'g', '0.4']
+
+	# loop through the flag quality:
+	for fl in range(np.max(flag)+1):
+		bThis = np.abs(fl-flag) < 1.0e-2
+		if np.sum(bThis) < 1:
+			continue
+		
+		# which plot symbol?
+		pSym = pSyms[fl % len(pSyms)]
+		colo = pCols[fl % len(pCols)]
+
+		dum1 = ax1.scatter(jd[bThis], countsObj[bThis], \
+					   marker=pSym, \
+					   color=colo, \
+					   alpha=0.5, \
+					   s=25)
+		dum2 = ax2.scatter(jd, countsCom, \
+					   marker=pSym, \
+					   color=colo, \
+					   alpha=0.5, \
+					   s=25)
+	
+	ax2.set_xlabel('JD - 2 400 000.0 d')
+	ax1.set_ylabel('Source minus sky, counts')
+	ax2.set_ylabel('Source minus sky, counts')
+
+	# standardize the y range
+	ax1.set_ylim(0., 15000.)
+	#ax2.set_ylim(0., 15000.)
+
+	ax1.annotate('v404 Cyg + contaminant', (0.95, 0.95), \
+			     ha='right', va='top', \
+			     xycoords='axes fraction', \
+			     color='k', fontsize=14)
+
+	ax2.annotate('Comparison star "C4" (R = 16.07)', (0.95, 0.95), \
+			     ha='right', va='top', \
+			     xycoords='axes fraction', \
+			     color='k', fontsize=14)
+
+
+	# save to disk
+	fig1.savefig(figNam)

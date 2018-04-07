@@ -7,6 +7,8 @@
 from astropy.table import Table
 import numpy as np
 
+import os
+
 import matplotlib.pylab as plt
 plt.ion()
 
@@ -26,7 +28,7 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         dayNo = np.asarray(times, 'int')
 
     # now break into an n x 4 grid
-    nPanels = np.max(dayNo)+1  # can tweak this if we're counting from
+    nPanels = int(np.max(dayNo)+1)  # can tweak this if we're counting from
                                # 1
     nRows = int(np.ceil(nPanels/np.float(nCols)))
 
@@ -59,12 +61,13 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
 
         # do the plot
         dum = ax.errorbar(hrs, mags[bThis], unctys[bThis], \
-                              ls='None', ecolor='0.8', \
-                              marker='o', color='0.1', \
-                              ms=2, alpha=0.5)
+                              ls='None', ecolor='0.6', \
+                              marker='o', color='b', \
+                              ms=4, alpha=0.5)
+
 
         # label the day number (we can refine this to dates later)
-        sLabel = 'Day %i' % (iPlot)
+        sLabel = 'Day %i' % (iPlot + 1)
         dumAnno = ax.annotate(sLabel, (0.95, 0.92), \
                                   xycoords='axes fraction', \
                                   ha='right', va='top', \
@@ -124,3 +127,21 @@ def genData(nPoints=1000, nNights=6):
     lSor = np.argsort(times)
 
     return times[lSor], unctys[lSor], mags[lSor]
+
+def showBinnedLC(filTable='v404_binSub.fits', nCols=3):
+
+    """Loads photometry file and plots in our nice grid"""
+
+    if not os.access(filTable, os.R_OK):
+        print "showBinned WARN - cannot read input path %s" \
+            % (filTable)
+        return
+
+    tPho = Table.read(filTable)
+    times = tPho['tBin']
+    mags = tPho['fBinSub']
+    unctys = tPho['uBin']
+    dayno = np.floor(times - np.min(times)-0.2)+1
+    print np.min(dayno), np.max(dayno)
+
+    go(times, mags, unctys, dayno, test=False, nCols=nCols)

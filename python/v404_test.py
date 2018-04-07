@@ -191,6 +191,21 @@ def go(pctile=10., iCheck=1, useMags=True, \
  	# dataset
  	ySub = mag - twoSine(pLow, jd)
 
+	# write out the ellipsoidal modulation model to disk for
+	# uniform characterization by v404ellipsoidal.py
+	tModel = Table()
+	tFine = np.linspace(np.min(jd), np.max(jd)+8., 400)
+	pFine, _ = phaseFromJD(tFine)
+	yFine = twoSine(pLow, tFine)
+	ll = np.argsort(pFine)
+
+	tModel['x'] = pFine[ll]
+	tModel['y'] = yFine[ll]
+	filEll = 'mdm_fig2_2017.txt'  # use the fig2_yyyy.txt convention
+	if os.access(filEll, os.R_OK):
+		os.remove(filEll)
+	tModel.write(filEll, format='ascii')
+
  	# by THIS point we have our ellipsoidal-subtracted
  	# lightcurve. Now let's try binning this...
  	tBin, fBin, uBin, nBin = \

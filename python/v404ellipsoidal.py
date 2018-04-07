@@ -49,25 +49,44 @@ def fitPaperEllipsoidal(pathIn='zurita04_fig2_2003.txt'):
 	# print successEll
 	return pEll, successEll, phs, mag
 
-def showPaperEllipsoidal(smo=1e-3):
+def showPaperEllipsoidal(smo=1e-3, yStep=0.3, lineupVert=False, \
+				 showOnlyDipRoots=False):
 
 	"""Fit and show the ellipsoidal modulations from the
 	literature. Set smo=0 for the spline to simply connect the
-	dots."""
+	dots. A few arguments:
+
+	smo=1e-3 -- spline smoothing factor for ellipsoidal representation
+
+	yStep = 0.3 -- progressive vertical step between epochs
+
+	lineupVert -- line up the curves by the phase=0.25 peak
+
+	showOnlyDipRoots: only highlight the locations of the minima"""
+
+	# ensure light background
+	plt.style.use('bmh')
+	plt.style.use('ggplot')
 
 	# construct the filename strings
 	lTimes = '2003', '2001', '1998', '1992'
 
 	lCurvs = ['zurita04_fig2_%s.txt' % (sTime) for sTime in lTimes]
-	
+
+	# reverse the list
+	lCurvs.reverse()
+
 	# add bernardini to the list
 	lCurvs.append('bernardini_fig2_2015.txt')
+
+	# now add our own dataset
+	lCurvs.append('mdm_fig2_2017.txt')
 
 	# set up an array for the fit parameters
 	aPars = np.zeros((len(lCurvs), 5))
 
 	# set up the figure
-	fig1 = plt.figure(1)
+	fig1 = plt.figure(8)
 	fig1.clf()
 	ax1 = fig1.add_subplot(111)
 	tFine = np.linspace(0., 2., 5000, endpoint=True)
@@ -78,8 +97,17 @@ def showPaperEllipsoidal(smo=1e-3):
 	# filename stem for serialization
 	DPickles = {}
 
+	# count down through the ellipsoidal modulations
 	for iCurv in range(len(lCurvs)):
+
 		pars, succ, jd, mag = fitPaperEllipsoidal(lCurvs[iCurv])
+
+		# we don't want those arbitrary offsets in our
+		# magnitudes. So remove them. FUDGE WARNING.
+		if lCurvs[iCurv].find('2017') < 1:
+			mag = mag - np.median(mag)
+
+		#print "INFO:: ", iCurv, np.median(mag)
 
 		if np.size(pars) < 1:
 			continue
@@ -118,19 +146,49 @@ def showPaperEllipsoidal(smo=1e-3):
 		DPickles[sDate]['xRoots'] = xRoots
 		DPickles[sDate]['yRoots'] = yRoots
 
+		# also the magnitude difference between the phase ~
+		# 1.0 dip and the phase ~0.5 dip
+		DPickles[sDate]['dDip'] = yRoots[3] - yRoots[1]
+
 		# offset to add to all the magnitudes when overplotting
-		yOff = 0.3*iCurv - np.median(ySpline)
-		
+		yOff = yStep*iCurv - np.median(ySpline)
+
+		if lineupVert:
+			yOff = 0. - yRoots[0]
+
+		# a few plot symbol variables. Change this to change
+		# the behavior on the plot.
+		lw = 1
+		pCol='k'
+		ls='-'
+		if sDate.find('2017') > -1:
+			lw = 2
+			pCol='b'
+			ls='-'
+
+		if sDate.find('2015') > -1:
+			pCol='0.3'
+			ls='--'
+
 		magSho = mag + yOff
 		ySplineSho = ySpline + yOff
 		yRoots += yOff
 
-		dum1 = ax1.scatter(jd, magSho, zorder=10, label=sDate, marker=pSym)
+		dum1 = ax1.scatter(jd, magSho, zorder=10, \
+					   label=sDate, marker=pSym, \
+					   s=.1)
+
 		#dum2 = ax1.plot(tFine, yFineSho, ls='-', color='0.3')
 		
-		dum3 = ax1.plot(tFine, ySplineSho, ls='-', color='0.3')
+		dum3 = ax1.plot(tFine, ySplineSho, ls=ls, color=pCol, \
+					lw=lw, zorder=15)
 
-		dum4 = ax1.plot(xRoots, yRoots, 'ks', zorder=10, ms=6)
+		# which roots do we show?
+		ll = np.argsort(xRoots)
+		if showOnlyDipRoots:
+			ll = np.array([1,3], 'int')
+
+		dum4 = ax1.plot(xRoots[ll], yRoots[ll], 'ks', zorder=10, ms=6)
 
 		if sDate.find('2015') > -1:
 			sDate = '2006-2015'
@@ -140,7 +198,7 @@ def showPaperEllipsoidal(smo=1e-3):
 		dumAnno = ax1.annotate(sDate, \
 					       (jd[iAnno]+0.05, magSho[iAnno]), \
 					       xycoords='data', ha='left', va='top', \
-					       fontsize=12)
+					       fontsize=12, color=pCol)
 
 	# serialize the ellipsoidal curves to disk
 	filEllip = 'test_ellip.pickle'
@@ -184,3 +242,136 @@ def errFunc(p, x, y):
 
     return y - twoSine(p, x)
 
+def makeEllipLayers(dirOut='ellipPNGs', filEllip='test_ellip.pickle', \
+			    showDips=True, lightbg=True, \
+			    hideHorizAxis=False):
+
+	"""Makes pngs with transparent background for overplotting in
+	powerpoint or slides. Frames are put into their own
+	subdirectory. Some arguments:
+
+	showDips -- label the phase 0.5 and 1.0 points
+
+	lightbg -- make frames with light background?
+
+	hideHorizAxis -- don't draw the horizontal axis line."""
+
+	# It's probably better for presentations and posters to allow
+	# the author to do this by hand (e.g. the time interval
+	# between datasets is >> the time interval along the
+	# ellipsoidal modulation). So:
+
+	if lightbg:
+		plt.style.use('seaborn-white')
+		#plt.style.use('seaborn-ticks')
+		lineColorAll='k'
+		sLight = 'lightBg'
+	else:
+		plt.style.use('dark_background')
+		lineColorAll='w'
+		sLight = 'darkBg'
+
+	# load the set of ellipsoidal modulation representations
+	if not os.access(filEllip, os.R_OK):
+		print "makeEllipLayers WARN - cannot read input file %s" \
+		    % (filEllip)
+		return
+
+	DD = pickle.load(open(filEllip, 'r'))
+	
+	# generate a phase array we'll use for all the curves
+	phs = np.linspace(0., 2., 200)
+
+	# standardize the vertical range
+	xRange = [0., 2.]
+	#yRange = [17.0, 16.4]
+	yRange = [0.25, -0.3]
+
+	# set up the output path
+	dirOut = '%s_%s' % (dirOut, sLight)
+	if not os.access(dirOut, os.R_OK):
+		os.mkdir(dirOut)
+
+	print "makeEllipLayers INFO - will put images into subdirectory %s" \
+	    % (dirOut)
+
+	# now loop through the characterizations we've made
+	for sYear in DD.keys():
+		func = DD[sYear]['spln']
+		mag = func(phs)
+
+		# we ensure that we're dealing with delta-mag from the
+		# median in each case.
+		yMed = np.median(mag)
+		mag -= yMed
+
+		# use our color scheme of black (or white) for
+		# pre-2017, and blue (or yellow) for the 2017
+		if sYear.find('2017') < 0:
+			lineColor = lineColorAll
+		else:
+			if lightbg:
+				lineColor='b'
+			else:
+				lineColor='y'
+
+		fig1=plt.figure(1, figsize=(10,5))
+		fig1.clf()
+		ax1=fig1.add_subplot(111)
+		dum = ax1.plot(phs, mag, lw=2, color=lineColor)
+		ax1.set_xlim(xRange)
+		ax1.set_ylim(yRange)
+
+		lRoots = np.array([1,3], 'int')
+		if showDips:
+
+			# (re-) find the roots
+			xRoots = func.derivative(n=1).roots()
+			bRoots = xRoots > 0.1
+			xRoots = xRoots[bRoots]
+
+			ll = np.argsort(xRoots)
+			xRoots = xRoots[ll]
+			yRoots = func(xRoots) - yMed
+
+			# we'll do one symbol per root
+
+			ax1.scatter(xRoots[1], yRoots[1], \
+					    marker='s', s=100, \
+					    zorder=25, color=lineColor)
+
+			ax1.scatter(xRoots[3], yRoots[3], \
+					    marker='p', s=100, \
+					    zorder=20, color=lineColor)
+			ax1.scatter(xRoots[3], yRoots[3], \
+					    marker='p', s=49, \
+					    color='w', \
+					    zorder=25)
+
+
+		# some axis carpentry
+		ax1.spines['top'].set_visible(False)
+		ax1.spines['right'].set_visible(False)
+		
+		# give the range in the spines
+		yLo = np.min(mag)
+		yHi = np.max(mag)
+		
+		ax1.spines['left'].set_bounds(yLo, yHi)
+
+		ax1.set_ylabel(r'$\Delta R$', fontsize=16, rotation=00)
+		plt.yticks(fontsize=14)
+		plt.xticks(fontsize=14)
+		ax1.set_xlabel('Phase', fontsize=16)
+
+		if not hideHorizAxis:
+			#ax1.set_xlabel('Phase', fontsize=16)
+			ax1.spines['bottom'].set_visible(True)
+			ax1.spines['bottom'].set_bounds(0., 2.)
+			ax1.xaxis.set_ticks_position('bottom')
+		else:
+			ax1.spines['bottom'].set_visible(False)
+
+		# set up the output path
+		pathOut = '%s/ellipFrame_%s_%s.png' % (dirOut, sYear, sLight)
+		fig1.savefig(pathOut, transparent=True)

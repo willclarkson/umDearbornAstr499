@@ -50,7 +50,8 @@ def fitPaperEllipsoidal(pathIn='zurita04_fig2_2003.txt'):
 	return pEll, successEll, phs, mag
 
 def showPaperEllipsoidal(smo=1e-3, yStep=0.3, lineupVert=False, \
-				 showOnlyDipRoots=False):
+				 showOnlyDipRoots=False, \
+				 reportMinima=True):
 
 	"""Fit and show the ellipsoidal modulations from the
 	literature. Set smo=0 for the spline to simply connect the
@@ -62,7 +63,9 @@ def showPaperEllipsoidal(smo=1e-3, yStep=0.3, lineupVert=False, \
 
 	lineupVert -- line up the curves by the phase=0.25 peak
 
-	showOnlyDipRoots: only highlight the locations of the minima"""
+	showOnlyDipRoots: only highlight the locations of the minima
+
+	reportMinima -- reports the minima difference to the screen"""
 
 	# ensure light background
 	plt.style.use('bmh')
@@ -193,6 +196,11 @@ def showPaperEllipsoidal(smo=1e-3, yStep=0.3, lineupVert=False, \
 		if sDate.find('2015') > -1:
 			sDate = '2006-2015'
 
+		if reportMinima:
+			print "%s: min(0.5) - min(1.0) = %+.3f" \
+			    % (sDate, yRoots[1]-yRoots[3])
+
+
 		# annotate
 		iAnno = np.argmax(jd)
 		dumAnno = ax1.annotate(sDate, \
@@ -315,10 +323,10 @@ def makeEllipLayers(dirOut='ellipPNGs', filEllip='test_ellip.pickle', \
 			else:
 				lineColor='y'
 
-		fig1=plt.figure(1, figsize=(10,5))
+		fig1=plt.figure(1, figsize=(10,10))
 		fig1.clf()
 		ax1=fig1.add_subplot(111)
-		dum = ax1.plot(phs, mag, lw=2, color=lineColor)
+		dum = ax1.plot(phs, mag, lw=3, color=lineColor)
 		ax1.set_xlim(xRange)
 		ax1.set_ylim(yRange)
 

@@ -21,7 +21,8 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
            dayNo=np.array([]), \
            nCols=4, \
            test=True, nNights=8, logPer=True, \
-           nNoise=1000, pctile=5.):
+           nNoise=1000, pctile=5., \
+           lsOnAll=True):
     
     """Plots (time, mag, error) data partitioned by day number. 
 
@@ -142,20 +143,24 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
                                  generalized=False)
 
         # Do the same exercise for gaussian white-noise
-        print "Starting %i trials..." % (nNoise)
-        aNoiseLS = np.zeros((nNoise, np.size(omegas)))
-        for iNoise in range(nNoise):
-            magNoise = np.random.normal(size=np.size(hrs))*unctys[bThis]
-            lsNoise = lomb_scargle(hrs, magNoise, unctys[bThis], \
-                                       omegas, \
-                                       generalized=False)
+        # print "Starting %i trials..." % (nNoise)
+        lsNoiseUpper, lsNoise = whiteNoiseLS(hrs, unctys[bThis], \
+                                                 omegas, nNoise, \
+                                                 pctile)
+        
+        #aNoiseLS = np.zeros((nNoise, np.size(omegas)))
+        #for iNoise in range(nNoise):
+        #    magNoise = np.random.normal(size=np.size(hrs))*unctys[bThis]
+        #    lsNoise = lomb_scargle(hrs, magNoise, unctys[bThis], \
+        #                               omegas, \
+        #                               generalized=False)
 
-            # slot this in to the simulation array
-            aNoiseLS[iNoise] = lsNoise
+        #    # slot this in to the simulation array
+        #    aNoiseLS[iNoise] = lsNoise
             
-        # do upper and lower bounds from the noise
-        lsNoiseUpper = np.percentile(aNoiseLS, 100.-pctile, axis=0)
-        lsNoiseLower = np.percentile(aNoiseLS, pctile, axis=0)
+        ## do upper and lower bounds from the noise
+        #lsNoiseUpper = np.percentile(aNoiseLS, 100.-pctile, axis=0)
+        #lsNoiseLower = np.percentile(aNoiseLS, pctile, axis=0)
 
         # OK now we plot the LS for this particular axis. Just like
         # before, this time for a different figure.
@@ -232,9 +237,6 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         thisLSnoise.set_ylim(lsMin, lsMax)
         thisLSnoise.grid(which='both', visible=True)
         
-
-
-
     # output the plot to a figure
     fig1.savefig('test_grid_lc.png', transparent=True)
     figLS.savefig('test_grid_LS.png', transparent=True)
@@ -246,6 +248,54 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     dum = ax2.scatter(times, mags, c=dayNo)
 
     cbar = fig2.colorbar(dum, ax=ax2)
+
+    if not lsOnAll:
+        return
+
+    print "lcPlot.go INFO - starting on the full dataset..."
+
+    # do the lomb-scargle on the entire dataset
+    dtAll = np.max(times) - np.min(times)
+    dtAll = 100./24.  # (100 hours)
+    dtMin = np.min(times[1::] - times[0:-1])
+    perAll = np.logspace(np.log10(dtMin*2.), np.log10(dtAll), 500)
+    omeAll = 2.0 * np.pi / perAll
+
+    lsAll = lomb_scargle(times, mags, unctys, omeAll, generalized=False)
+    lsUp, lsNoise = whiteNoiseLS(times, unctys, omeAll, nNoise, pctile)
+
+    fig5 = plt.figure(5, figsize=(8,4))
+    fig5.clf()
+    ax51 = fig5.add_subplot(121)
+    ax52 = fig5.add_subplot(122, sharex=ax51, sharey=ax51)
+
+    LS = ax51.semilogx(perAll * 24., lsAll, 'bo', ms=1, ls='-', color='b')
+    LSc = ax52.semilogx(perAll * 24., lsNoise, \
+                            ms=1, ls='-', color='0.2', \
+                                            alpha=0.5)
+    LSn = ax52.semilogx(perAll * 24., lsUp, alpha=0.7, color=coloSim)
+
+    fig5.subplots_adjust(hspace=0.02, wspace=0.05, bottom=0.15)
+
+    # standardize
+    for thisAx in [ax51, ax52]:
+        thisAx.grid(which='both', visible=True)
+        thisAx.set_xlabel('Period (hours)')
+        
+    ax51.set_ylabel('LS Power')
+    ax52.tick_params(labelleft='off')
+
+    # annotate the noise axis
+    dumAnno = ax52.annotate('%.0f percent, %i trials' \
+                                         % (100.-pctile, nNoise), \
+                                         (0.05, 0.85), \
+                                         xycoords='axes fraction', \
+                                         ha='left', va='top', \
+                                         color=coloSim, \
+                                         alpha=0.7)
+
+    # save this figure to disk
+    fig5.savefig('test_alldata_LS.png', transparent=True)
 
 def genData(nPoints=1000, nNights=6):
 
@@ -265,6 +315,31 @@ def genData(nPoints=1000, nNights=6):
     lSor = np.argsort(times)
 
     return times[lSor], unctys[lSor], mags[lSor]
+
+def whiteNoiseLS(t=np.array([]), u=np.array([]), \
+                     omegas=np.array([]), nTrials=100, \
+                     pctile=1., Verbose=True):
+
+    """Wrapper to do the lomb-scargle on white noise datasets"""
+
+    if Verbose:
+        print "whiteNoiseLS INFO - Starting %i trials..." % (nTrials)
+    
+    nData = np.size(t)
+    aNoiseLS = np.zeros((nTrials, np.size(omegas)))
+    for iNoise in range(nTrials):
+        magNoise = np.random.normal(size=nData)*u
+        lsNoise = lomb_scargle(t,magNoise, u, \
+                                   omegas, \
+                                   generalized=False)
+
+        aNoiseLS[iNoise] = lsNoise
+
+    lsNoiseUpper = np.percentile(aNoiseLS, 100.-pctile, axis=0)
+
+    # return the lomb-scargle of the upper percentile and also an
+    # example LS periodogram.
+    return lsNoiseUpper, lsNoise
 
 def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
                      nTrials=1000, pctile=5.):

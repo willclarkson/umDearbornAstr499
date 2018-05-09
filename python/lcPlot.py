@@ -1,6 +1,6 @@
 #
 # lcPlot.py
-#
+# test for github 2018-05-09
 
 # 2018-04-05 WIC - plot night-by-night lightcurve a la Z04
 

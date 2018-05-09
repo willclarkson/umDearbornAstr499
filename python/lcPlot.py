@@ -75,10 +75,14 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     lAxesLS = []
     lAxesLSnoise = []
 
+    coloSim='g'
+    print "nPanels: %i" % (nPanels)
+
     # loop through the panels
     for iPlot in range(nPanels):
         bThis = dayNo == iPlot
-        if np.sum(bThis) < 1:
+        if np.sum(bThis) < 10:
+            print "Bad interval: %i, %i points" % (iPlot, np.sum(bThis))
             continue
         
         # add the panel
@@ -94,7 +98,7 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         dum = ax.errorbar(hrs, mags[bThis], unctys[bThis], \
                               ls='None', ecolor='0.6', \
                               marker='o', color='b', \
-                              ms=4, alpha=0.5)
+                              ms=1, alpha=0.5)
 
 
         # Set the label for the day number
@@ -168,8 +172,9 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         axLSnoise = figLSnoise.add_subplot(nRows, nCols, iPlot+1)
         
 
-        dumLS = axLS.semilogx(pers, lsBin, 'bo', ms=1, ls='-', color='b')
-        dumLSnoise = axLSnoise.semilogx(pers, lsNoise, \
+        ### 2018-05-07 log-log from semilogx
+        dumLS = axLS.loglog(pers, lsBin, 'bo', ms=1, ls='-', color='b')
+        dumLSnoise = axLSnoise.loglog(pers, lsNoise, \
                                             ms=1, ls='-', color='0.2', \
                                             alpha=0.5)
         
@@ -218,23 +223,35 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         lAxesLS.append(axLS)
         lAxesLSnoise.append(axLSnoise)
 
+        ### 2018-05-07 hardcode the vertical axis
+        ### ax.set_ylim(np.max(mags[bThis]), np.max(mags[bThis])-0.4)
+
     # now set the same x-range for all the axes
     for thisAx in lAxes:
         thisAx.set_xlim(hrMin, hrMax)
 
         # set the y limit
+        ### 2018-05-07 
         thisAx.set_ylim(np.max(mags + unctys), np.min(mags - unctys))
-
+        
     # do the same for the lomb-scargle figures
     for iAx in range(len(lAxesLS)):
         thisLS = lAxesLS[iAx]
-        thisLS.set_xlim(perMin, perMax)
-        thisLS.set_ylim(lsMin, lsMax)
+        try:
+            thisLS.set_xlim(perMin, perMax)
+            thisLS.set_ylim(lsMin, lsMax)
+        except:
+            print("WARN - LS axes badval??")
+        #thisLS.set_ylim(lsMin, lsMax)
         thisLS.grid(which='both', visible=True)
 
+
         thisLSnoise = lAxesLSnoise[iAx]
-        thisLSnoise.set_xlim(perMin, perMax)
-        thisLSnoise.set_ylim(lsMin, lsMax)
+        try:
+            thisLSnoise.set_xlim(perMin, perMax)
+            thisLSnoise.set_ylim(lsMin, lsMax)
+        except:
+            print("WARN - LS Noise axes badval??")
         thisLSnoise.grid(which='both', visible=True)
         
     # output the plot to a figure

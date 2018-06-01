@@ -65,7 +65,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	t1212 = Table.read('onesandtwos_a12.csv', format='ascii.csv')
 	dy = t1212['rel_flux_err_T1']
 	jd = t1212['J.D.-2400000']
-	mag = t1212['Flux_V404']
+	# mag = t1212['Flux_V404']
 	flag = t1212['Flag']
 
 	if oldAperture:

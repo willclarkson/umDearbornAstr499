@@ -57,7 +57,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       binTime=0.0034722, bootstrapping=False, \
 	       errorbars=True, \
 	       magContam=17.5, magCompar=16.07, \
-	       showPhase=True):
+	       showPhase=True, \
+	       writeOnly=False):
 
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
@@ -141,11 +142,36 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	#dy = 1.086 * tbl['rel_flux_err_T1']
 	num = len(mag)
 
+
 	if not useMags:
 		mag = np.copy(relFlux)
 		dy = np.copy(errFlux)
 		#mag = tbl['rel_flux_T1'] 
 		#dy = tbl['rel_flux_err_T1']
+
+	### 2018-06-01 WIC - throw in an argument to just plot for one
+	### night only
+	if writeOnly:
+		plt.style.use('ggplot')
+		fig2 = plt.figure(2, figsize=(10,4))
+		fig2.clf()
+
+		#print jd
+
+		#print np.shape(jd)
+		#print np.shape(mag)
+
+		#tBin, fBin, uBin, nBin = \
+		#    BinData(jd, mag, dy, tStart=tStart, tEnd=tEnd, \
+	#			    BinTime=binTime, plotDBG=True)
+
+
+		ax1 = fig2.add_subplot(111)
+		#dum = ax1.plot(jd, mag, 'bo')
+		dum2 = ax1.errorbar(jd, mag, dy, fmt='b.', ls='None')
+
+		return
+
 
 	# This was my (failed) attempt to use the lambda function for
 	# y like in the example

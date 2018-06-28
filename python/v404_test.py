@@ -58,16 +58,22 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       errorbars=True, \
 	       magContam=17.5, magCompar=16.07, \
 	       showPhase=True, \
-	       writeOnly=False):
+	       writeOnly=False, \
+	       inPath='onesandtwos_a12.csv', \
+	       noCorrection=False, showBinned=False):
 
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
-	t1212 = Table.read('onesandtwos_a12.csv', format='ascii.csv')
+	t1212 = Table.read(inPath, format='ascii.csv')
 	dy = t1212['rel_flux_err_T1']
 	jd = t1212['J.D.-2400000']
 	# mag = t1212['Flux_V404']
-	flag = t1212['Flag']
+	if 'Flag' in t1212.colnames:
+		flag = t1212['Flag']
+	else:
+		flag = np.ones(len(t1212), 'int')
+		t1212['Flag'] = flag
 
 	if oldAperture:
 		# WARN - this won't work without importing all the
@@ -126,7 +132,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	errMag = 1.086 * errFlux
 	
 	# so, get the apparent magnitude of v404 cyg itself.
-	mag = correctMagForContaminant(magBoth, magContam)
+	if not noCorrection:
+		mag = correctMagForContaminant(magBoth, magContam)
+	else:
+		mag = np.copy(magBoth)
 	dy = np.copy(errMag)
 
 	jd = tbl['J.D.-2400000']
@@ -161,14 +170,52 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		#print np.shape(jd)
 		#print np.shape(mag)
 
-		#tBin, fBin, uBin, nBin = \
-		#    BinData(jd, mag, dy, tStart=tStart, tEnd=tEnd, \
-	#			    BinTime=binTime, plotDBG=True)
+		tBin, fBin, uBin, nBin = \
+		    BinData(jd, mag, dy, tStart=tStart, tEnd=tEnd, \
+				    BinTime=binTime, plotDBG=True)
 
+
+		xSho = np.copy(jd)
+		ySho = np.copy(mag)
+		eSho = np.copy(dy)
+
+		if showBinned:
+			xSho = np.copy(tBin)
+			ySho = np.copy(fBin)
+			eSho = np.copy(uBin)
 
 		ax1 = fig2.add_subplot(111)
 		#dum = ax1.plot(jd, mag, 'bo')
-		dum2 = ax1.errorbar(jd, mag, dy, fmt='b.', ls='None')
+		dum2 = ax1.errorbar(xSho, ySho, eSho, fmt='bo', ls='None', \
+					    ms=1, alpha=0.5)
+
+	#	dum2 = ax1.scatter(tBin, fBin, color='b', alpha=0.5, s=4)
+
+
+		#dum2 = ax1.errorbar(tBin, fBin, uBin, fmt='b.', ls='None')
+
+		yMin = np.percentile(fBin, 1)
+
+		yRang = np.copy(ax1.get_ylim())
+		ax1.set_ylim(yMin+0.4, yMin)
+		
+		### 2018-06-02 WIC - thrown-together estimate for the
+		### chisq
+		bLo = xSho < 58270.953695
+		fig3 = plt.figure(3, figsize=(5,5))
+		fig3.clf()
+		ax3 = fig3.add_subplot(111)
+
+		chi = (ySho - np.median(ySho))/eSho
+
+		dum = ax3.hist(chi, 100)
+		print "INFO - std(chi) = %.3f" % (np.std(chi))
+
+		# also print out the uncertainties
+		print "INFO: dy median, std: %.3e, %.3e" \
+		    % (np.median(eSho), np.std(eSho))
+
+		ax1.plot(xSho[bLo], ySho[bLo], 'r.', zorder=5)
 
 		return
 
@@ -719,7 +766,7 @@ def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2,
         # Error combination is slightly more involved - add the quad
         # sum of the errors (remember propagation of errors from
         # classes)
-        ThisErrorAverage = np.sqrt(np.sum(vError[gInThisBin]**2)/np.size(gInThisBin))
+        ThisErrorAverage = np.sqrt(np.sum(vError[gInThisBin]**2) / np.size(gInThisBin)**2 )
 
         # Having found the average in all the inputs, stick them onto
         # the end of the output

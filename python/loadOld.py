@@ -33,7 +33,7 @@ rules for reading in the casares collection of zurita04 data
     magn = aDum[:,1]
 
     sCol = 'time'
-    if np.max(timeOrPhase) - np.min(timeOrPhase) < 2:
+    if np.max(timeOrPhase) < 1.0:
         sCol = 'phase'
 
     tPho[sCol] = Column(timeOrPhase)

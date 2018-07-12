@@ -66,7 +66,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotBinnedLS=False, plotLS=False, \
 	       plotNoiseData=False, \
 	       plotNoiseLS=False, plotHistogram=False, \
-	       plotBinnedNoiseData=False, plotBinnedNoiseLS=False):
+	       plotBinnedNoiseData=False, plotBinnedNoiseLS=False, \
+	       plotSubtractedData=False):
 
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
@@ -300,6 +301,17 @@ def go(pctile=10., iCheck=1, useMags=True, \
  	# if you want to subtract the ellipsoidal modulation from the
  	# binned data, you might do:
  	fBinSub = fBin - twoSine(pLow, tBin)
+
+ 	# or just the raw data...
+ 	fSub = mag - twoSine(pLow, jd)
+
+ 	# let's plot this...
+
+ 	if plotSubtractedData:
+ 		fig11 = plt.figure(11)
+ 		fig11.clf()
+ 		ax11 = fig11.add_subplot(111)
+ 		ax11.scatter(jd, fSub)
 
 	# 2018-04-07 WIC - write the binned subtracted lightcurve to
 	# file to plot with other methods.

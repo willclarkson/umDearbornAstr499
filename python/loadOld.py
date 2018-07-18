@@ -39,14 +39,17 @@ rules for reading in the casares collection of zurita04 data
     tPho[sCol] = Column(timeOrPhase)
 
     # Flux or magnitude?
-    if nCols > 2: # For some reason, 2003 data was displaying incorrectly when using the values themselves..
+    if np.median(magn) > 15.0:
         tPho['mag'] = Column(magn)
     else:
         tPho['flux'] = Column(magn)
         
     # now for the other columns
     if nCols > 2:
-        tPho['magErr'] = Column(aDum[:,2])
+        if np.median(magn) > 15.0:
+            tPho['magErr'] = Column(aDum[:,2])
+        else:
+            tPho['fluxErr'] = Column(aDum[:,2])
 
     if nCols > 3:
         tPho['magC'] = Column(aDum[:,3])

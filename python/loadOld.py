@@ -37,7 +37,12 @@ rules for reading in the casares collection of zurita04 data
         sCol = 'phase'
 
     tPho[sCol] = Column(timeOrPhase)
-    tPho['mag'] = Column(magn)
+
+    # Flux or magnitude?
+    if nCols > 2: # For some reason, 2003 data was displaying incorrectly when using the values themselves..
+        tPho['mag'] = Column(magn)
+    else:
+        tPho['flux'] = Column(magn)
         
     # now for the other columns
     if nCols > 2:

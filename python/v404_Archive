@@ -1,5 +1,5 @@
 # All imports from terminal first
-#test for github 2018-07-10
+
 import matplotlib.pylab as plt
 plt.ion()
 plt.style.use('ggplot')
@@ -26,6 +26,8 @@ import os
 ## t122 = Table.read('twos_a12.csv', format='ascii.csv')
 #t1212 = Table.read('onesandtwos_a12.csv', format='ascii.csv')
 
+#Test
+
 #useFlag = 12
 ## if useFlag == 1:
 ## 		tbl = t1
@@ -50,7 +52,8 @@ import os
 
 def go(pctile=10., iCheck=1, useMags=True, \
 	       clipOutliers=False, \
-	       oldAperture=False, useFlag=12, \
+	       oldAperture=False, \
+	       useFlag=12, \
 	       tStart=-1e9, \
 	       tEnd = 57993., \
 	       #tEnd=57992.0, \
@@ -59,8 +62,14 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       magContam=17.5, magCompar=16.07, \
 	       showPhase=True, \
 	       writeOnly=False, \
-	       inPath='onesandtwos_a12.csv', \
-	       noCorrection=False, showBinned=False):
+	       inPath='../../../Desktop/onesandtwos_a12.csv', \
+	       noCorrection=False, showBinned=False, \
+	       plotBinnedData=False, \
+	       plotBinnedLS=False, plotLS=False, \
+	       plotNoiseData=False, \
+	       plotNoiseLS=False, plotHistogram=False, \
+	       plotBinnedNoiseData=False, plotBinnedNoiseLS=False, \
+	       plotSubtractedData=False): #plotRawCounts=False, 
 
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
@@ -145,7 +154,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	# 2018-04-07 useful to plot the RAW data. Rather than
 	# interrupt the flow, we port this off to another method.
-	showRawCounts(tbl)
+	
+	#if plotRawCounts:
+		#showRawCounts(tbl)
 
 	#mag = tbl['Average Mag(V404)']  # superseded by the material above.
 	#dy = 1.086 * tbl['rel_flux_err_T1']
@@ -249,8 +260,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 						 clipOutliers=clipOutliers)
 
 	if iCheck > -1:
-		bCheck = chunks == iCheck	
-		showHist(mag[bCheck])
+		bCheck = chunks == iCheck
+		if plotHistogram:	
+			showHist(mag[bCheck])
 
  	p0 = np.array([a1, phi, orbital_period, a2, diff])
  	p1, success = \
@@ -274,10 +286,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	tModel['x'] = pFine[ll]
 	tModel['y'] = yFine[ll]
-	filEll = 'mdm_fig2_2017.txt'  # use the fig2_yyyy.txt convention
-	if os.access(filEll, os.R_OK):
-		os.remove(filEll)
-	tModel.write(filEll, format='ascii')
+	##filEll = 'mdm_fig2_2017.txt'  # use the fig2_yyyy.txt convention
+	##if os.access(filEll, os.R_OK):
+		##os.remove(filEll)
+	##tModel.write(filEll, format='ascii')
 
  	# by THIS point we have our ellipsoidal-subtracted
  	# lightcurve. Now let's try binning this...
@@ -291,6 +303,17 @@ def go(pctile=10., iCheck=1, useMags=True, \
  	# if you want to subtract the ellipsoidal modulation from the
  	# binned data, you might do:
  	fBinSub = fBin - twoSine(pLow, tBin)
+
+ 	# or just the raw data...
+ 	fSub = mag - twoSine(pLow, jd)
+
+ 	# let's plot this...
+
+ 	if plotSubtractedData:
+ 		fig11 = plt.figure(11)
+ 		fig11.clf()
+ 		ax11 = fig11.add_subplot(111)
+ 		ax11.scatter(jd, fSub)
 
 	# 2018-04-07 WIC - write the binned subtracted lightcurve to
 	# file to plot with other methods.
@@ -312,25 +335,28 @@ def go(pctile=10., iCheck=1, useMags=True, \
  	period = np.linspace(0.0005, orbital_period, 1000)
  	omega = 2 * np.pi / period
  	binnedLS = lomb_scargle(tBin, fBinSub, uBin, omega, generalized=False)
+ 	
  	if bootstrapping == True:
  		Dbin = lomb_scargle_bootstrap(tBin, fBinSub, uBin, omega, generalized=False, N_bootstraps=1000, random_state=0)
  		sig1b, sig5b = np.percentile(Dbin, [99,95])
 
+ 	if plotBinnedData:
+ 		fig4 = plt.figure(4)
+ 		fig4.clf()
+ 		ax4 = fig4.add_subplot(111)
+ 		ax4.plot(tBin, fBinSub, 'ko')
+ 		plt.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
 
- 	fig4 = plt.figure(4)
- 	fig4.clf()
- 	ax4 = fig4.add_subplot(111)
- 	ax4.plot(tBin, fBinSub, 'ko')
- 	plt.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
-
- 	fig5 = plt.figure(5)
- 	fig5.clf()
-	#ax5 = fig5.add_subplot(111, xscale='log', yscale='log')
-	ax5 = fig5.add_subplot(111)
-	ax5.plot(period, binnedLS, 'ko', ls='-', ms=4)
-	if bootstrapping == True:
-	   ax5.plot([period[0], period[-1]], [sig1b, sig1b], ':', c='red') #sig1 means percentile is '99'
-	   ax5.plot([period[0], period[-1]], [sig5b, sig5b], ':', c='green') #sig5 means percentile is '95'
+ 	
+ 	if plotBinnedLS:
+ 		fig5 = plt.figure(5)
+ 		fig5.clf()
+		#ax5 = fig5.add_subplot(111, xscale='log', yscale='log')
+		ax5 = fig5.add_subplot(111)
+		ax5.plot(period, binnedLS, 'ko', ls='-', ms=4)
+		if bootstrapping:
+	   		ax5.plot([period[0], period[-1]], [sig1b, sig1b], ':', c='red') #sig1 means percentile is '99'
+	   		ax5.plot([period[0], period[-1]], [sig5b, sig5b], ':', c='green') #sig5 means percentile is '95'
 
  	##period = orbital_period
  	period = np.linspace(0.0005, orbital_period, 1000)
@@ -348,42 +374,45 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
  		#Attempting to plot the periodogram
 
-	fig3 = plt.figure(3)
-	fig3.clf()
-	#ax3 = fig3.add_subplot(111, xscale='log', yscale='log')
-	ax3 = fig3.add_subplot(111)
+	if plotLS:
+		fig3 = plt.figure(3)
+		fig3.clf()
+		#ax3 = fig3.add_subplot(111, xscale='log', yscale='log')
+		ax3 = fig3.add_subplot(111)
 
-	ax3.plot(period, flicker, 'ko', ls='-', ms=4)
-	if bootstrapping == True:
-		ax3.plot([period[0], period[-1]], [sig1, sig1], ':', c='red') #sig1 means percentile is '99'
-		ax3.plot([period[0], period[-1]], [sig5, sig5], ':', c='green') #sig5 means percentile is '95'
+		ax3.plot(period, flicker, 'ko', ls='-', ms=4)
+		if bootstrapping == True:
+			ax3.plot([period[0], period[-1]], [sig1, sig1], ':', c='red') #sig1 means percentile is '99'
+			ax3.plot([period[0], period[-1]], [sig5, sig5], ':', c='green') #sig5 means percentile is '95'
 
  	magsNoise = np.random.normal(size=np.size(jd))*dy
  	flickNoise = lomb_scargle(jd, magsNoise, dy, omega, generalized=False)
 
     #Plot the LS
 	
-	fig6 = plt.figure(6)
-	fig6.clf()
-	#ax5 = fig5.add_subplot(111, xscale='log', yscale='log')
-	ax6 = fig6.add_subplot(111)
+	if plotNoiseLS:
+		fig6 = plt.figure(6)
+		fig6.clf()
+		#ax5 = fig5.add_subplot(111, xscale='log', yscale='log')
+		ax6 = fig6.add_subplot(111)
 	 	# Get Significance via bootstrap
- 	if bootstrapping == True:
- 		DNoise = lomb_scargle_bootstrap(jd, magsNoise, dy, omega, generalized=False, N_bootstraps=1000, random_state=0)
-		sig1N, sig5N = np.percentile(DNoise, [99,95])
+ 		if bootstrapping == True:
+ 			DNoise = lomb_scargle_bootstrap(jd, magsNoise, dy, omega, generalized=False, N_bootstraps=1000, random_state=0)
+			sig1N, sig5N = np.percentile(DNoise, [99,95])
 
 
-	ax6.plot(period, flickNoise, 'ko', ls='-', ms=4)
-	if bootstrapping == True:
-		ax6.plot([period[0], period[-1]], [sig1N, sig1N], ':', c='red') #sig1 means percentile is '99'
-		ax6.plot([period[0], period[-1]], [sig5N, sig5N], ':', c='green') #sig5 means percentile is '95'
+		ax6.plot(period, flickNoise, 'ko', ls='-', ms=4)
+		if bootstrapping == True:
+			ax6.plot([period[0], period[-1]], [sig1N, sig1N], ':', c='red') #sig1 means percentile is '99'
+			ax6.plot([period[0], period[-1]], [sig5N, sig5N], ':', c='green') #sig5 means percentile is '95'
 
 	# Plot the random noise
-	fig7 = plt.figure(7)
-	fig7.clf()
-	ax7 = fig7.add_subplot(111)
+	if plotNoiseData:
+		fig7 = plt.figure(7)
+		fig7.clf()
+		ax7 = fig7.add_subplot(111)
 
-	ax7.scatter(jd, magsNoise)
+		ax7.scatter(jd, magsNoise)
 
 
 	#Let's try binning the random noise
@@ -392,11 +421,12 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
  	#Attempting to plot the binned noise
 
- 	fig8 = plt.figure(8)
- 	fig8.clf()
- 	ax8 = fig8.add_subplot(111)
- 	ax8.plot(tBinNoise, fBinNoise, 'ko')
- 	plt.errorbar(tBin, fBinNoise, yerr=uBinNoise, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
+ 	if plotBinnedNoiseData:
+ 		fig8 = plt.figure(8)
+ 		fig8.clf()
+ 		ax8 = fig8.add_subplot(111)
+ 		ax8.plot(tBinNoise, fBinNoise, 'ko')
+ 		plt.errorbar(tBin, fBinNoise, yerr=uBinNoise, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
 
  	#Lomb-Scargle for binned noise
 
@@ -411,14 +441,15 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
  	#Plot this
 
- 	fig9 = plt.figure(9)
- 	fig9.clf()
- 	ax9 = fig9.add_subplot(111)
+ 	if plotBinnedNoiseLS:
+ 		fig9 = plt.figure(9)
+ 		fig9.clf()
+ 		ax9 = fig9.add_subplot(111)
 
- 	ax9.plot(period, binnedLSNoise, 'ko', ls='-', ms=4)
- 	if bootstrapping == True:
- 		ax9.plot([period[0], period[-1]], [sig1nb, sig1nb], ':', c='red') #sig1 means percentile is '99'
-		ax9.plot([period[0], period[-1]], [sig5nb, sig5nb], ':', c='green') #sig5 means percentile is '95'
+ 		ax9.plot(period, binnedLSNoise, 'ko', ls='-', ms=4)
+ 		if bootstrapping == True:
+ 			ax9.plot([period[0], period[-1]], [sig1nb, sig1nb], ':', c='red') #sig1 means percentile is '99'
+			ax9.plot([period[0], period[-1]], [sig5nb, sig5nb], ':', c='green') #sig5 means percentile is '95'
 
 
     #blah = optimize.leastsq(errFunc, p0[:], args=(Tx, tX), full_output=True)
@@ -524,7 +555,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	
 	# 2018-04-07 - save the plot as png, naming convention after
 	# the figure numbers in the routine.
-	plt.savefig('v404_fig1.png')
+	#plt.savefig('v404_fig1.png')
 
 	##ax3.show(block=False)
 
@@ -828,6 +859,7 @@ def showHist(x=np.array([]), bins=20, checkClipping=True):
 	# enforce the same range
 	xRange = [np.min(x), np.max(x)]
 
+
 	fig2 = plt.figure(2)
 	fig2.clf()
 	ax = fig2.add_subplot(111)
@@ -911,67 +943,68 @@ def phaseFromJD(jdShort=np.array([]), per=6.4714, tZer=48813.873, \
 
 	return phs, u_phs
 
-def showRawCounts(tPhot=Table(), figNam='test_rawCounts.png'):
+# def showRawCounts(tPhot=Table(), figNam='test_rawCounts.png'):
 
-	"""Show the raw counts"""
+# 	"""Show the raw counts"""
 
-	if len(tPhot) < 1:
-		return
+# 	if len(tPhot) < 1:
+# 		return
 
-	jd = tPhot['J.D.-2400000']
-	countsObj = tPhot['Source-Sky_T1']
-	countsCom = tPhot['Source-Sky_C2']
-	flag = tPhot['Flag']
+# 	jd = tPhot['J.D.-2400000']
+# 	countsObj = tPhot['Source-Sky_T1']
+# 	countsCom = tPhot['Source-Sky_C2']
+# 	flag = tPhot['Flag']
 
-	fig1 = plt.figure(10)
-	fig1.clf()
-	ax1=fig1.add_subplot(211)
-	ax2=fig1.add_subplot(212, sharex=ax1, sharey=ax1)
+
+# 	fig1 = plt.figure(10)
+# 	fig1.clf()
+# 	ax1=fig1.add_subplot(211)
+# 	ax2=fig1.add_subplot(212, sharex=ax1, sharey=ax1)
+
+# 	fig1.subplots_adjust(hspace=0.05)
+
+# 	pSyms = ['x', '+', 'x', 'v', 's']
+# 	pCols = ['b', 'g', 'b', 'g', '0.4']
+
+# 	# loop through the flag quality:
+# 	for fl in range(np.max(flag)+1):
+# 		bThis = np.abs(fl-flag) < 1.0e-2
+# 		if np.sum(bThis) < 1:
+# 			continue
 	
-	fig1.subplots_adjust(hspace=0.05)
+# 		# which plot symbol?
+# 		pSym = pSyms[fl % len(pSyms)]
+# 		colo = pCols[fl % len(pCols)]
 
-	pSyms = ['x', '+', 'x', 'v', 's']
-	pCols = ['b', 'g', 'b', 'g', '0.4']
+# 		dum1 = ax1.scatter(jd[bThis], countsObj[bThis], \
+# 				   marker=pSym, \
+# 				   color=colo, \
+# 				   alpha=0.5, \
+# 				   s=25)
+# 		dum2 = ax2.scatter(jd, countsCom, \
+# 				   marker=pSym, \
+# 				   color=colo, \
+# 				   alpha=0.5, \
+# 				   s=25)
 
-	# loop through the flag quality:
-	for fl in range(np.max(flag)+1):
-		bThis = np.abs(fl-flag) < 1.0e-2
-		if np.sum(bThis) < 1:
-			continue
-		
-		# which plot symbol?
-		pSym = pSyms[fl % len(pSyms)]
-		colo = pCols[fl % len(pCols)]
+# 	ax2.set_xlabel('JD - 2 400 000.0 d')
+# 	ax1.set_ylabel('Source minus sky, counts')
+# 	ax2.set_ylabel('Source minus sky, counts')
 
-		dum1 = ax1.scatter(jd[bThis], countsObj[bThis], \
-					   marker=pSym, \
-					   color=colo, \
-					   alpha=0.5, \
-					   s=25)
-		dum2 = ax2.scatter(jd, countsCom, \
-					   marker=pSym, \
-					   color=colo, \
-					   alpha=0.5, \
-					   s=25)
-	
-	ax2.set_xlabel('JD - 2 400 000.0 d')
-	ax1.set_ylabel('Source minus sky, counts')
-	ax2.set_ylabel('Source minus sky, counts')
+# 	# standardize the y range
+# 	ax1.set_ylim(0., 15000.)
+# 	#ax2.set_ylim(0., 15000.)
 
-	# standardize the y range
-	ax1.set_ylim(0., 15000.)
-	#ax2.set_ylim(0., 15000.)
+# 	ax1.annotate('v404 Cyg + contaminant', (0.95, 0.95), \
+# 		     ha='right', va='top', \
+# 		     xycoords='axes fraction', \
+# 		     color='k', fontsize=14)
 
-	ax1.annotate('v404 Cyg + contaminant', (0.95, 0.95), \
-			     ha='right', va='top', \
-			     xycoords='axes fraction', \
-			     color='k', fontsize=14)
-
-	ax2.annotate('Comparison star "C4" (R = 16.07)', (0.95, 0.95), \
-			     ha='right', va='top', \
-			     xycoords='axes fraction', \
-			     color='k', fontsize=14)
+# 	ax2.annotate('Comparison star "C4" (R = 16.07)', (0.95, 0.95), \
+# 		     ha='right', va='top', \
+# 		     xycoords='axes fraction', \
+# 			     color='k', fontsize=14)
 
 
-	# save to disk
-	fig1.savefig(figNam)
+# 	#save to disk
+# 	fig1.savefig(figNam)

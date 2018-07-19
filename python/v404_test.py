@@ -8,7 +8,7 @@ import numpy as np
 from scipy import optimize
 import sys
 from astropy.stats import sigma_clip
-
+import loadOld #v404_test must be located in the same directory as loadOld for this to work
 from astroML.time_series import lomb_scargle, lomb_scargle_bootstrap
 
 # for testing existence of files

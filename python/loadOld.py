@@ -7,6 +7,8 @@
 from astropy.table import Table, Column
 import numpy as np
 
+import matplotlib.pylab as plt
+
 def loadPhot(fileIn='199208elip_R.dat', fix98=True, fudge92=True):
 
     """Quick utility to read in the zurita photometry, using the ad hoc

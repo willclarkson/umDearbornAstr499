@@ -52,13 +52,22 @@ rules for reading in the casares collection of zurita04 data
     #else:
     #    tPho['flux'] = Column(magn)
 
-    tPho['mag'] = Column(magn)
+    # 2018-07-30: replaced with more specialized fudge, since the 2017
+    # and 2018 data are in FLUX!
+    if np.median(magn) < 15.0 and np.median(timeOrPhase) > 50000:
+        tPho['flux'] = Column(magn)
+        if nCols > 2:
+            tPho['fluxErr'] = Column(aDum[:,2])
+    else:
+        tPho['mag'] = Column(magn)
+        if nCols > 2:
+            tPho['magErr'] = Column(aDum[:,2])
 
     # now for the other columns
-    if nCols > 2:
+    #if nCols > 2:
         # 2018-07-30 OBSOLETE - 1992 is also in mag!!!
-        #if np.median(magn) > 15.0:
-        tPho['magErr'] = Column(aDum[:,2])
+    #    #if np.median(magn) > 15.0:
+    #    tPho['magErr'] = Column(aDum[:,2])
         #else:
         #    tPho['fluxErr'] = Column(aDum[:,2])
 
@@ -70,7 +79,8 @@ rules for reading in the casares collection of zurita04 data
     # estimate in their figure [we might consider going back to the
     # Pavlenko source paper to estimate the uncertainty]
     if len(tPho.colnames) < 3 and fudge92:
-        tPho = estUncty92(tPho)
+        if fileIn.find('92') > -1:
+            tPho = estUncty92(tPho)
         
     # if we're fixing 1998 data, change things here, AFTER the table
     # has been completed (since we may be changing in-place).

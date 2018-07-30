@@ -424,7 +424,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
  	# let's try logspace. Here we specify the limits in terms of a power of ten.
  	if plotLS:
 	 	period = np.logspace(-3., 0.5, 1000)
-	 	dy = tbl['fluxErr']
+	 	#dy = tbl['fluxErr']
 	 	omega = 2 * np.pi / period
 		# 	flicker = lomb_scargle(period, ySub, dy, omega, generalized=False)
 	 	flicker = lomb_scargle(jd, ySub, dy, omega, generalized=False)

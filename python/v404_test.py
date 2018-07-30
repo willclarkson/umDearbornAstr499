@@ -84,7 +84,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
-	warn = "WARNING: The only thing in this script that will currently work for data NOT from 2017 is plotting raw data and generating fake data."
+	warn = "WARNING: Ellipsoidal modulation will not work for 1999 and 2003!"
 	warn2 = "WARNING: Binned data only plots if showBinned, plotEllipsoidal, and plotSubtractedData are all set to True."
 
 	if plotBinnedData or plotBinnedLS or plotBinnedNoiseData or plotBinnedNoiseLS:
@@ -96,10 +96,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	if data == '1992':
 		tbl = t92
-		print "1992 data currently does not work due to not having error associated with it."
 	elif data == '1998':
 		tbl = t98
-		print warn
 	elif data == '1999A':
 		tbl = t99A
 		print warn
@@ -113,7 +111,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		tbl = t17
 	elif data == '2018A':
 		tbl = t18A
-		print warn
+		print "WARNING: The current datafile does not contain the last night of data!"
 	else:
 		print "The value for 'data' must be either 1992, 1998, 1999A, 1999B, 2003, 2017, or 2018A."
 		return

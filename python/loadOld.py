@@ -117,12 +117,13 @@ def phaseToMJD(tPho=Table(), MJD0=51000.750, \
     # WATCHOUT - The Casares et al. ephemeris expresses tZer as JD - 2
     # 400 000.0 which means MJD + 0.5. For ease of reading, we add
     # that 0.5 days back on here.
-    tZ = tZer + 0.5
+    tZ = tZer - 0.5
     
     N_start = np.floor((MJD0 - tZ)/per)
 
     # which means the next lowest phase zero must occur at MJD...
     mjdPrevZero = tZ + N_start*per
+    # print "INFO - nearest phase zero is", mjdPrevZero
 
     # it will be handy to have an array giving "weird" points for
     # which the time appears to have moved backwards...

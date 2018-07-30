@@ -85,9 +85,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	# confusion
 
 	warn = "WARNING: Ellipsoidal modulation will not work for 1999 and 2003!"
-	warn2 = "WARNING: Binned data only plots if showBinned, plotEllipsoidal, and plotSubtractedData are all set to True."
+	warn2 = "WARNING: Binned and subtracted data only plots if showBinned, plotEllipsoidal, and plotSubtractedData are all set to True."
 
-	if plotBinnedData or plotBinnedLS or plotBinnedNoiseData or plotBinnedNoiseLS:
+	if plotBinnedData or plotBinnedLS or plotBinnedNoiseData or plotBinnedNoiseLS or plotSubtractedData:
 		print warn2
 
 
@@ -98,6 +98,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		tbl = t92
 	elif data == '1998':
 		tbl = t98
+		print "WARNING: Due to 1998 data already being in phase, binning and subtraction currently does not work."
 	elif data == '1999A':
 		tbl = t99A
 		print warn

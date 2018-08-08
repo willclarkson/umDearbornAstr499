@@ -24,6 +24,7 @@ try:
 	t03 = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/28_July_2003_iac80.qdp")
 	t17 = loadOld.loadPhot(fileIn="../../../Desktop/v404_2017.txt")
 	t18A = loadOld.loadPhot(fileIn="../../../Desktop/v404_2018A.txt")
+	t18B = loadOld.loadPhot(fileIn="../../../Desktop/2018B_Night1.txt")
 except UnboundLocalError:
 	print "One or more files is in the wrong directory. Please edit the script to ensure the code references the correct directory."
 
@@ -113,8 +114,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	elif data == '2018A':
 		tbl = t18A
 		print "WARNING: The current datafile does not contain the last night of data!"
+	elif data == '2018B':
+		tbl = t18B
 	else:
-		print "The value for 'data' must be either 1992, 1998, 1999A, 1999B, 2003, 2017, or 2018A."
+		print "The value for 'data' must be either 1992, 1998, 1999A, 1999B, 2003, 2017, 2018A or 2018B."
 		return
 
 	# t1212 = Table.read(inPath, format='ascii.csv')

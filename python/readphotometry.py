@@ -192,6 +192,7 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
     ax.set_ylim(-2000, 1000)
     leg = ax.legend()
 
+    # shows the lightcurve plot
     plt.show()
     
 

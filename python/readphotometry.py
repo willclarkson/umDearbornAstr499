@@ -199,7 +199,104 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
 
     return fluxAll, unctAll
     
+# read-in star positions
+def starPos(degFitX=1):
+
+    jdAll = np.array([])
+    xShiftAll = np.array([])
+    yShiftAll = np.array([])
+    print('Reading in files...')
+    
+    files = glob.glob('Aligned_*.fits')
+                 
+#Data=np.genfromtxt
+
+                    #fileNames = sorted(files)
+                    #fileNames = fileNames[0:]
+
+    for f in files:
+                    #Data=np.genfromtxt(fname=f)
+        thisHdr = fits.getheader(f)
+        thisJD = thisHdr['JD']
+        jdAll = np.hstack((jdAll, thisJD))
+        thisX = thisHdr['X_SHIFT']
+        thisY = thisHdr['Y_SHIFT']
+        xShiftAll = np.hstack((thisX, xShiftAll))
+        yShiftAll = np.hstack((thisY, yShiftAll))
+
+        #xyShift = np.vstack((thisX, thisY))
+    #print jdAll, xShiftAll, yShiftAll
+
+#   update the time vector in-place to convert from days --> seconds
+    jdAll = (jdAll - np.min(jdAll))*86400.
+
+    # fit low-order polynomial to the shifts
+    parsX = np.polyfit(jdAll, xShiftAll, deg=degFitX)
+    parsY = np.polyfit(jdAll, yShiftAll, deg=1)
+
+    tFine = np.linspace(np.min(jdAll)-0.01, np.max(jdAll)+0.01, 1000, endpoint=True)
+
+    # let's get the residuals from the straight line fit in X
+    residX = xShiftAll - np.polyval(parsX, jdAll)
+
+    fig4 = plt.figure(4)
+    fig4.clf()
+    ax4 = fig4.add_subplot(111)
+    dum4 = ax4.scatter(jdAll, residX, c='r', s=25)
+    ax4.set_xlabel(r"JD (days)")
+    ax4.set_ylabel(r"$\Delta x$, pix")
+
+#Plot data
+    figx = plt.figure(1)
+    figx.clf()
+    axx = figx.add_subplot(211)
+    dum1 = axx.scatter(jdAll, xShiftAll, marker='^', s=9, c='b', \
+                       label=r"xShift")
+    
+    if np.abs(degFitX - 1) < 1e-3:
+        axx.set_title(r'$\Delta x = (%.2e)t + (%.2e$)' % (parsX[0], parsX[1]))
+    #axx.set_xlabel(r"$\Delta t$, seconds")
+    
+    # overplot the fit
+    dum2 = axx.plot(tFine, np.polyval(parsX, tFine), 'k-')
+    
+    #plt.show(block=False)
+    
+#figy = plt.figure(2)
+#figy.clf()
+    axy = figx.add_subplot(212, sharex=axx)
+    dum2=axy.scatter(jdAll, yShiftAll, marker='s', s=9, c='r', \
+                label=r"xShift")
+    #plt.show(block=False)
+    
+    #axy.set_xlabel('JD - min(JD), seconds')
+    axy.set_xlabel(r"$\Delta t$, seconds")
+
+#    for ax in [axx, axy]:
+#        ax.grid(which='both')
+#        leg=ax.legend()
+
+    axx.set_ylabel('xShift (pix)')
+    axy.set_ylabel('yShift (pix)')
 
 
+    figxy = plt.figure(3)
+    figxy.clf()
+    axxy = figxy.add_subplot(111)
+    dum = axxy.scatter(xShiftAll, yShiftAll, c=jdAll, marker='o', label='path', edgecolor='0.5')
+    axxy.set_xlabel('xShift')
+    axxy.set_ylabel('yShift')
 
+    cbar = figxy.colorbar(dum)
 
+    for ax in [axx, axy, axxy]:
+        ax.grid(which='both')
+        leg=ax.legend()
+
+    # save the figures
+    figx.savefig('fig_shiftsVsTime.pdf')
+    figxy.savefig('fig_shiftsVsShift.pdf')
+
+# plt.show(block=False)
+
+#print xyShift

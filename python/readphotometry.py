@@ -232,19 +232,10 @@ def starPos(degFitX=1):
 
     # fit low-order polynomial to the shifts
     parsX = np.polyfit(jdAll, xShiftAll, deg=degFitX)
-    parsY = np.polyfit(jdAll, yShiftAll, deg=1)
+    parsY = np.polyfit(jdAll, yShiftAll, deg=degFitX)
 
     tFine = np.linspace(np.min(jdAll)-0.01, np.max(jdAll)+0.01, 1000, endpoint=True)
 
-    # let's get the residuals from the straight line fit in X
-    residX = xShiftAll - np.polyval(parsX, jdAll)
-
-    fig4 = plt.figure(4)
-    fig4.clf()
-    ax4 = fig4.add_subplot(111)
-    dum4 = ax4.scatter(jdAll, residX, c='r', s=25)
-    ax4.set_xlabel(r"JD (days)")
-    ax4.set_ylabel(r"$\Delta x$, pix")
 
 #Plot data
     figx = plt.figure(1)
@@ -266,11 +257,14 @@ def starPos(degFitX=1):
 #figy.clf()
     axy = figx.add_subplot(212, sharex=axx)
     dum2=axy.scatter(jdAll, yShiftAll, marker='s', s=9, c='r', \
-                label=r"xShift")
+                label=r"yShift")
     #plt.show(block=False)
-    
+    dum3 = axy.plot(tFine, np.polyval(parsY, tFine), 'k-')
+
     #axy.set_xlabel('JD - min(JD), seconds')
-    axy.set_xlabel(r"$\Delta t$, seconds")
+    sLabelT =r"$\Delta t$, seconds"
+    axy.set_xlabel(sLabelT)
+    #axy.set_xlabel(r"$\Delta t$, seconds")
 
 #    for ax in [axx, axy]:
 #        ax.grid(which='both')
@@ -288,8 +282,24 @@ def starPos(degFitX=1):
     axxy.set_ylabel('yShift')
 
     cbar = figxy.colorbar(dum)
+    
+    # let's get the residuals from the straight line fit in X and the fit in Y
+    residX = xShiftAll - np.polyval(parsX, jdAll)
+    residY = yShiftAll - np.polyval(parsY, jdAll)
 
-    for ax in [axx, axy, axxy]:
+    fig4 = plt.figure(4)
+    fig4.clf()
+    ax4 = fig4.add_subplot(211)
+    dum4 = ax4.plot(jdAll, residX, color='b', ms=3, label='X Residual', marker='^')
+#ax4.set_xlabel(r"JD (seconds)")
+    ax4.set_ylabel(r"$\Delta x$, pix")
+    ax5 = fig4.add_subplot(212, sharex=ax4)
+    dum5 = ax5.plot(jdAll, residY, color='r', ms=3, label='Y Residual', marker='s')
+    #ax5.set_xlabel(r"JD(seconds)")
+    ax5.set_xlabel(sLabelT)
+    ax5.set_ylabel(r"$\Delta y$, pix")
+
+    for ax in [axx, axy, axxy, ax4, ax5]:
         ax.grid(which='both')
         leg=ax.legend()
 

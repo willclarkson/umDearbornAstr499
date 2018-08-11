@@ -2,6 +2,7 @@ import sys
 import os
 import numpy as np
 from astropy.io import fits
+from astropy.stats import LombScargle
 import matplotlib.pyplot as plt
 plt.ion() # ensure we get the command line back
 
@@ -200,7 +201,7 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
     return fluxAll, unctAll
     
 # read-in star positions
-def starPos(degFitX=1):
+def starPos(degFitX=2):
 
     jdAll = np.array([])
     xShiftAll = np.array([])
@@ -287,6 +288,8 @@ def starPos(degFitX=1):
     residX = xShiftAll - np.polyval(parsX, jdAll)
     residY = yShiftAll - np.polyval(parsY, jdAll)
 
+
+
     fig4 = plt.figure(4)
     fig4.clf()
     ax4 = fig4.add_subplot(211)
@@ -299,7 +302,52 @@ def starPos(degFitX=1):
     ax5.set_xlabel(sLabelT)
     ax5.set_ylabel(r"$\Delta y$, pix")
 
-    for ax in [axx, axy, axxy, ax4, ax5]:
+    # Creating Lomb-Scargle Periodograms
+    # imported from astropy.stats import LombScargle
+    fig5 = plt.figure(5)
+    fig5.clf()
+    ax6 = fig5.add_subplot(212)
+
+
+# let's generate the frequencies we want
+    pDesired = np.linspace(500., 1500., 1000, endpoint=True)
+    freq = 1.0/pDesired
+    power = LombScargle(jdAll, residY).power(freq)
+
+# let's get the maximium value
+    iMax = np.argmax(power)
+    periodMax = pDesired[iMax]
+
+    sPeakY = 'Peak period = %.2f s' % (periodMax)
+
+#freq, power = LombScargle(jdAll,residY).autopower()
+    ax6.plot(1.0/freq, power, 'ro', ls='-', ms=2, label=sPeakY)
+#ax6.set_xlabel('Period (s)')
+    ax6.set_xlim(500., 1500.)
+
+# leg6 = ax6.legend()
+
+# Plot for X residuals
+# sPeakX = 'Peak period = %.2f s' % (periodMax)
+    powerX = LombScargle(jdAll, residX).power(freq)
+    iMaxX = np.argmax(powerX)
+    periodMaxX = pDesired[iMaxX]
+    
+    sPeakX = 'Peak period = %.2f s' % (periodMaxX)
+
+    ax7=fig5.add_subplot(211)
+    ax7.plot(1.0/freq, powerX, 'bo', ls='-', ms=2, label=sPeakX)
+    ax6.set_xlabel('Period (s)')
+#leg7 = ax7.legend()
+
+
+    for ax in [ax6, ax7]:
+        ax.set_ylabel('Lomb-Scargle power')
+    
+
+
+
+    for ax in [axx, axy, axxy, ax4, ax5, ax6, ax7]:
         ax.grid(which='both')
         leg=ax.legend()
 

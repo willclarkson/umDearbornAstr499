@@ -237,7 +237,7 @@ def starPos(degFitX=2):
 
     tFine = np.linspace(np.min(jdAll)-0.01, np.max(jdAll)+0.01, 1000, endpoint=True)
 
-
+#----------------- FIGURE 1 AND 2 -------------------#
 #Plot data
     figx = plt.figure(1)
     figx.clf()
@@ -271,24 +271,26 @@ def starPos(degFitX=2):
 #        ax.grid(which='both')
 #        leg=ax.legend()
 
-    axx.set_ylabel('xShift (pix)')
-    axy.set_ylabel('yShift (pix)')
+    axx.set_ylabel('xShift (pixels)')
+    axy.set_ylabel('yShift (pixels)')
+    plt.suptitle('X-Shift and Y-Shift vs. Time')
 
+#---------------- FIGURE 3 -----------------------#
 
     figxy = plt.figure(3)
     figxy.clf()
     axxy = figxy.add_subplot(111)
     dum = axxy.scatter(xShiftAll, yShiftAll, c=jdAll, marker='o', label='path', edgecolor='0.5')
-    axxy.set_xlabel('xShift')
-    axxy.set_ylabel('yShift')
-
+    axxy.set_xlabel('xShift (pixels)')
+    axxy.set_ylabel('yShift (pixels)')
+    plt.title('X-Shift vs. Y-Shift')
     cbar = figxy.colorbar(dum)
     
     # let's get the residuals from the straight line fit in X and the fit in Y
     residX = xShiftAll - np.polyval(parsX, jdAll)
     residY = yShiftAll - np.polyval(parsY, jdAll)
 
-
+#--------------- FIGURE 4 -----------------------#
 
     fig4 = plt.figure(4)
     fig4.clf()
@@ -301,12 +303,17 @@ def starPos(degFitX=2):
     #ax5.set_xlabel(r"JD(seconds)")
     ax5.set_xlabel(sLabelT)
     ax5.set_ylabel(r"$\Delta y$, pix")
+    plt.suptitle('X and Y Residuals vs. Time')
+
+#-------------- FIGURE 5 ------------------------#
 
     # Creating Lomb-Scargle Periodograms
     # imported from astropy.stats import LombScargle
     fig5 = plt.figure(5)
     fig5.clf()
     ax6 = fig5.add_subplot(212)
+    # fig.suptitle() (could also use plt.suptitle()) displays a tilte above both subplots
+    plt.suptitle('Lomb-Scargle Power Spectrum for X and Y Residuals')
 
 
 # let's generate the frequencies we want
@@ -324,8 +331,7 @@ def starPos(degFitX=2):
     ax6.plot(1.0/freq, power, 'ro', ls='-', ms=2, label=sPeakY)
 #ax6.set_xlabel('Period (s)')
     ax6.set_xlim(500., 1500.)
-
-# leg6 = ax6.legend()
+    # leg6 = ax6.legend()
 
 # Plot for X residuals
 # sPeakX = 'Peak period = %.2f s' % (periodMax)
@@ -339,6 +345,54 @@ def starPos(degFitX=2):
     ax7.plot(1.0/freq, powerX, 'bo', ls='-', ms=2, label=sPeakX)
     ax6.set_xlabel('Period (s)')
 #leg7 = ax7.legend()
+    avgPeriod = np.average([periodMax,periodMaxX])
+    phase = jdAll/np.float(avgPeriod)
+    print np.shape(phase)
+    phase = phase - np.floor(phase)
+
+# let's fit the residuals against each other
+    parsXY = np.polyfit(residX, residY, 1)
+# ------------------ FIGURE 6 --------------- #
+    fig6 = plt.figure(6)
+    fig6.clf()
+    axdxdy = fig6.add_subplot(111)
+
+# let's try ordering by phase
+    iSort = np.argsort(phase)
+
+# increase the plot symbol size with phase
+    sPhs = 25.0 + 50.*phase**2
+#sPhs = np.repeat(25., np.size(phase))
+
+    ax8 = axdxdy.scatter(residX[iSort], residY[iSort], c=phase[iSort], \
+                        marker='o', label='path', edgecolor='0.5', s=sPhs, \
+                            vmin=0., vmax=1., zorder=2)
+
+
+#dumLine = axdxdy.plot(residX[iSort], residY[iSort], ls='-.', lw=1, color='0.8')
+    axdxdy.set_xlabel('residX (pixels)')
+    axdxdy.set_ylabel('residY (pixels)')
+    cbar1 = fig6.colorbar(ax8)
+#axdxdy.set_xlim(500., 1500.)
+
+#a = np.array([residX])
+#    b = np.array([residY])
+
+    c = np.hstack((residX, residY))
+    cMax = np.max(np.abs(c))
+
+    # let's overplot the trend HERE
+    xFine = np.linspace(-cMax, cMax, 1000)
+    dumTrend = axdxdy.plot(xFine, np.polyval(parsXY, xFine), color='k', ls='--', zorder=1, \
+                           label=r'Trend angle: %.2f$^{\circ}$' % (np.degrees(np.arctan(parsXY[0]))) )
+
+
+    axdxdy.set_xlim(-cMax,cMax)
+    axdxdy.set_ylim(-cMax,cMax)
+    plt.title('Residuals in X vs. Residuals in Y')
+#    axdxdy.set_xlim(-np.max(np.abs(c)), np.max(np.abs(c)))
+#    axdxdy.set_ylim(-np.max(np.abs(c)), np.max(np.abs(c)))
+#axdxdy.set_xlim(
 
 
     for ax in [ax6, ax7]:
@@ -347,14 +401,27 @@ def starPos(degFitX=2):
 
 
 
-    for ax in [axx, axy, axxy, ax4, ax5, ax6, ax7]:
+    for ax in [axx, axy, axxy, ax4, ax5, ax6, ax7, axdxdy]:
         ax.grid(which='both')
         leg=ax.legend()
 
+    figList = [figx, figxy, fig4, fig6, fig5 ]
+    figTails = ['shiftVsTime', 'shiftVsShift', 'residVsTime', 'residVsResid','powspec']
+
+    for iFig in range(len(figList)):
+        fileName = 'fig_%s.pdf' % (figTails[iFig])
+        figList[iFig].savefig(fileName)
+
     # save the figures
-    figx.savefig('fig_shiftsVsTime.pdf')
-    figxy.savefig('fig_shiftsVsShift.pdf')
+#figx.savefig('fig_shiftsVsTime.pdf')
+#    figxy.savefig('fig_shiftsVsShift.pdf')
 
 # plt.show(block=False)
 
 #print xyShift
+
+# finds the largest reisdual values and scales the x and y limits of the plot accordingly
+#def resid():
+
+
+

@@ -31,6 +31,10 @@ rules for reading in the casares collection of zurita04 data
         except:
             badRead = True
 
+    # trim out nans
+    bGood = np.isfinite(aDum[:,1])
+    aDum = aDum[bGood]
+
     # Now we have to decide what this all means...
     tPho = Table()
 
@@ -71,9 +75,12 @@ rules for reading in the casares collection of zurita04 data
         #else:
         #    tPho['fluxErr'] = Column(aDum[:,2])
 
-    if nCols > 3:
+    if nCols == 5:
         tPho['magC'] = Column(aDum[:,3])
         tPho['magCerr'] = Column(aDum[:,4])
+
+    if nCols == 4:
+        tPho['telescope'] = Column(aDum[:,3])
 
     # the 1992 data do not have uncertainties, but Z04 do provide an
     # estimate in their figure [we might consider going back to the

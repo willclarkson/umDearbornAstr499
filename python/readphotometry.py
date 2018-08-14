@@ -201,15 +201,15 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
     return fluxAll, unctAll
     
 # read-in star positions
-def starPos(degFitX=2):
+def starPos(degFitX=2, sTitl=''):
 
     jdAll = np.array([])
     xShiftAll = np.array([])
     yShiftAll = np.array([])
     print('Reading in files...')
     
-    files = glob.glob('Aligned_*.fits')
-                 
+    files = glob.glob('aligned*.fits')
+    #files = glob.glob('*.fits')            
 #Data=np.genfromtxt
 
                     #fileNames = sorted(files)
@@ -227,8 +227,9 @@ def starPos(degFitX=2):
 
         #xyShift = np.vstack((thisX, thisY))
     #print jdAll, xShiftAll, yShiftAll
-
+    #print jdAll
 #   update the time vector in-place to convert from days --> seconds
+    #print jdAll
     jdAll = (jdAll - np.min(jdAll))*86400.
 
     # fit low-order polynomial to the shifts
@@ -243,7 +244,7 @@ def starPos(degFitX=2):
     figx.clf()
     axx = figx.add_subplot(211)
     dum1 = axx.scatter(jdAll, xShiftAll, marker='^', s=9, c='b', \
-                       label=r"xShift")
+                       label=r"xShift %s" % (sTitl))
     
     if np.abs(degFitX - 1) < 1e-3:
         axx.set_title(r'$\Delta x = (%.2e)t + (%.2e$)' % (parsX[0], parsX[1]))
@@ -258,7 +259,7 @@ def starPos(degFitX=2):
 #figy.clf()
     axy = figx.add_subplot(212, sharex=axx)
     dum2=axy.scatter(jdAll, yShiftAll, marker='s', s=9, c='r', \
-                label=r"yShift")
+                label=r"yShift %s" % (sTitl))
     #plt.show(block=False)
     dum3 = axy.plot(tFine, np.polyval(parsY, tFine), 'k-')
 
@@ -280,7 +281,8 @@ def starPos(degFitX=2):
     figxy = plt.figure(3)
     figxy.clf()
     axxy = figxy.add_subplot(111)
-    dum = axxy.scatter(xShiftAll, yShiftAll, c=jdAll, marker='o', label='path', edgecolor='0.5')
+    dum = axxy.scatter(xShiftAll, yShiftAll, c=jdAll, marker='o', label='path %s' % (sTitl), \
+        edgecolor='0.5')
     axxy.set_xlabel('xShift (pixels)')
     axxy.set_ylabel('yShift (pixels)')
     plt.title('X-Shift vs. Y-Shift')
@@ -295,7 +297,7 @@ def starPos(degFitX=2):
     fig4 = plt.figure(4)
     fig4.clf()
     ax4 = fig4.add_subplot(211)
-    dum4 = ax4.plot(jdAll, residX, color='b', ms=3, label='X Residual', marker='^')
+    dum4 = ax4.plot(jdAll, residX, color='b', ms=3, label='X Residual %s' %(sTitl), marker='^')
 #ax4.set_xlabel(r"JD (seconds)")
     ax4.set_ylabel(r"$\Delta x$, pix")
     ax5 = fig4.add_subplot(212, sharex=ax4)
@@ -325,7 +327,7 @@ def starPos(degFitX=2):
     iMax = np.argmax(power)
     periodMax = pDesired[iMax]
 
-    sPeakY = 'Peak period = %.2f s' % (periodMax)
+    sPeakY = 'Peak period = %.2fs' % (periodMax)
 
 #freq, power = LombScargle(jdAll,residY).autopower()
     ax6.plot(1.0/freq, power, 'ro', ls='-', ms=2, label=sPeakY)
@@ -339,7 +341,7 @@ def starPos(degFitX=2):
     iMaxX = np.argmax(powerX)
     periodMaxX = pDesired[iMaxX]
     
-    sPeakX = 'Peak period = %.2f s' % (periodMaxX)
+    sPeakX = 'Peak period = %.2fs %s' % (periodMaxX, sTitl)
 
     ax7=fig5.add_subplot(211)
     ax7.plot(1.0/freq, powerX, 'bo', ls='-', ms=2, label=sPeakX)
@@ -365,7 +367,7 @@ def starPos(degFitX=2):
 #sPhs = np.repeat(25., np.size(phase))
 
     ax8 = axdxdy.scatter(residX[iSort], residY[iSort], c=phase[iSort], \
-                        marker='o', label='path', edgecolor='0.5', s=sPhs, \
+                        marker='o', label='path %s' % (sTitl), edgecolor='0.5', s=sPhs, \
                             vmin=0., vmax=1., zorder=2)
 
 
@@ -408,11 +410,24 @@ def starPos(degFitX=2):
     figList = [figx, figxy, fig4, fig6, fig5 ]
     figTails = ['shiftVsTime', 'shiftVsShift', 'residVsTime', 'residVsResid','powspec']
 
+    # clean up the string to make it filename-appropriate
+    sFil=''
+    if len(sTitl) > 0:
+        sFil = sTitl[:].replace("(","").replace(")","")
+        sFil = sFil.replace(",","_").replace(" ","")
+        sFil = sFil.replace("/","").replace("\\","")
+        sFil = "%s_" % (sFil)
+        #print "SFIL INFO: %s" % (sFil)
+        print '---------Date---file name--'
+        print ''
+
     for iFig in range(len(figList)):
-        fileName = 'fig_%s.pdf' % (figTails[iFig])
+        fileName = 'fig_%s%s.pdf' % (sFil, figTails[iFig])
         figList[iFig].savefig(fileName)
 
-    # save the figures
+        
+        print fileName, 'SAVED' 
+            # save the figures
 #figx.savefig('fig_shiftsVsTime.pdf')
 #    figxy.savefig('fig_shiftsVsShift.pdf')
 

@@ -1,3 +1,5 @@
+#2018-08-13: v404_test for Christian's account. SHOULD NOT BE PUSHED TO GITHUB!!!
+
 # All imports from terminal first
 
 import matplotlib.pylab as plt
@@ -22,9 +24,9 @@ try:
 	t99A = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/mv4_990706_apcorr.dat")
 	t99B = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/mv4_990707_apcorr.dat")
 	t03 = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/28_July_2003_iac80.qdp")
-	t17 = loadOld.loadPhot(fileIn="../../../Desktop/v404_2017.txt")
-	t18A = loadOld.loadPhot(fileIn="../../../Desktop/v404_2018A.txt")
-	t18B = loadOld.loadPhot(fileIn="../../../Desktop/2018B_Night1.txt")
+	t17 = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2017.txt")
+	t18A = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2018A.txt")
+	t18B = loadOld.loadPhot(fileIn="../../../Desktop/2018B_Night5.txt")
 except UnboundLocalError:
 	print "One or more files is in the wrong directory. Please edit the script to ensure the code references the correct directory."
 
@@ -81,12 +83,13 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotNoiseData=False, \
 	       plotNoiseLS=False, plotHistogram=False, \
 	       plotBinnedNoiseData=False, plotBinnedNoiseLS=False, \
-	       plotSubtractedData=False, plotEllipsoidal=False):
+	       plotSubtractedData=False, plotEllipsoidal=False, limit=0.1):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
 	warn = "WARNING: Ellipsoidal modulation will not work for 1999 and 2003!"
 	warn2 = "WARNING: Binned and subtracted data only plots if showBinned, plotEllipsoidal, and plotSubtractedData are all set to True."
+	#warn3 = "2017 and 2018A data will not work for this version of v404_test on Christian's account."
 
 	if plotBinnedData or plotBinnedLS or plotBinnedNoiseData or plotBinnedNoiseLS or plotSubtractedData:
 		print warn2
@@ -111,8 +114,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		print warn
 	elif data == '2017':
 		tbl = t17
+		#print warn3
 	elif data == '2018A':
 		tbl = t18A
+		#print warn3
 		print "WARNING: The current datafile does not contain the last night of data!"
 	elif data == '2018B':
 		tbl = t18B
@@ -129,6 +134,12 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	# else:
 	flag = np.ones(len(tbl), 'int')
 	tbl['Flag'] = flag
+
+	if data == '2018B':
+		ucty = tbl['fluxErr']
+		goodErr = ucty < limit
+
+
 
 	# if oldAperture:
 	# 	# WARN - this won't work without importing all the
@@ -629,14 +640,28 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	plt.figure(0)
 	plt.clf()
-	dum0 = plt.scatter(jd, mag,\
-					  alpha=1., c=flagColor, s=16, \
-					  cmap='inferno', zorder=25, \
-					  edgecolor='0.4')
-	if errorbars:
-			plt.errorbar(jd, mag, yerr=dy, fmt='o', \
-					     ms=1, ecolor='0.3', alpha=0.5, \
-					     zorder=10)
+	if data == '2018B':
+		dum0 = plt.scatter(jd[goodErr], mag[goodErr],\
+						  alpha=1., c=flagColor[goodErr], s=16, \
+						  cmap='inferno', zorder=25, \
+						  edgecolor='0.4')
+		if errorbars:
+				plt.errorbar(jd[goodErr], mag[goodErr], yerr=dy[goodErr], fmt='o', \
+						     ms=1, ecolor='0.3', alpha=0.5, \
+						     zorder=10)
+	else:
+		dum0 = plt.scatter(jd, mag,\
+						  alpha=1., c=flagColor, s=16, \
+						  cmap='inferno', zorder=25, \
+						  edgecolor='0.4')
+		if errorbars:
+				plt.errorbar(jd, mag, yerr=dy, fmt='o', \
+						     ms=1, ecolor='0.3', alpha=0.5, \
+						     zorder=10)
+
+
+
+
 	plt.show(block=False)
 	
 	yLims = np.copy(plt.gca().get_ylim())

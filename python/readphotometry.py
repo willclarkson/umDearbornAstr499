@@ -16,6 +16,24 @@ import glob
 # for serializing to disk (will still be quicker to read than to re-generate)
 import cPickle as pickle
 
+
+# a little method that when called will print the names of all the important methods within this routine 
+# and instructions for each, if needed.
+def readphotometryHelp():
+    print ''
+    print 'read()'
+    print 'The method read() reads in all the photometry files.'
+    print 'This method will be called within read_and_plot()'
+    print 'INSTRUCTIONS: Use read_and_plot()'
+    print ''
+    print 'read_and_plot()'
+    print 'The method read_and_plot() will call the read() method, which searches for .fits.flux files for lightcurve generation.'
+    print 'INSTRUCTIONS: Enter in the argument for read_and_plot() the prefix of the .fits.flux file names. (e.g. prefix="alignedCropped")'
+    print ''
+    print 'starPos()'
+    print 'The method starPos() will read the FITS header information of a FITS image that has been aligned and cropped in AstroImageJ.'
+    print 'INSTRUCTIONS: There are no specific arguments needed for this method to work.'
+
 # a test method to read-in one photometry file
 
 def testread():
@@ -60,7 +78,7 @@ def read(prefix='',Verbose=False):
     print("read INFO - searching for files %s\*.flux ..." % (prefix))
 
     Lfound = glob.glob('%s*.flux' % (prefix))
-
+    #Lfound = glob.glob('%s*.fits' % (prefix))
     if Verbose:
         print("read INFO - file list with prefix %s :" % (prefix),
               Lfound)
@@ -77,6 +95,7 @@ def read(prefix='',Verbose=False):
 
         #pathImg = '../%s' % (f.split('.flux')[0]) # use when in a folder inside Output_dir ../ goes up a directory
         pathImg = '../%s' % (f.split('.flux')[0]) # use when in Output_dir
+        #pathImg = '../%s' % (f.split('.fits')[0]) # for difference imagges ? 
         sys.stdout.write('\r %s, %s, %s' % (f, pathImg, os.access(pathImg, os.R_OK)))
         sys.stdout.flush()
 
@@ -160,7 +179,8 @@ def loadAndPlot(iShow=[0], inFile='lightcurves.cPickle', convertTimes=True):
 def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
                   outFile='lightcurves.cPickle'):
     
-    # call our read routine to bring in the data
+    plt.style.use('classic') # changing the plot style
+    # CALLS READ() ROUTINE TO BRING IN THE DATA
     hjdAll, fluxAll, unctAll = read(prefix=prefix, Verbose=Verbose)
     
     fig = plt.figure(1)
@@ -188,9 +208,9 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
         sLabel = 'Object %i' % (iThis+1)
         #ax.plot(x,fluxAll[:,iThis], label=sLabel)
         dum = ax.errorbar(times, fluxAll[:,iThis], unctAll[:,iThis], label=sLabel, lw=1)
-
+        plt.scatter(times, fluxAll[:,iThis], alpha=0.5)
     ax.set_xlabel(sLabelX)
-    ax.set_ylim(-2000, 1000)
+    ax.set_ylim(-5000, 5000)
     leg = ax.legend()
 
     # shows the lightcurve plot
@@ -199,7 +219,9 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
 
 
     return fluxAll, unctAll
-    
+ 
+# -------------------------------------------------------------------------- O ------------------------------------------------------------------------
+
 # read-in star positions
 def starPos(degFitX=2, sTitl=''):
 

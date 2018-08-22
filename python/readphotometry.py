@@ -30,6 +30,9 @@ def readphotometryHelp():
     print 'The method read_and_plot() will call the read() method, which searches for .fits.flux files for lightcurve generation.'
     print 'INSTRUCTIONS: Enter in the argument for read_and_plot() the prefix of the .fits.flux file names. (e.g. prefix="alignedCropped")'
     print ''
+    print 'read_and_plot_test()'
+    print 'A "test" version of read_and_plot() for experimentation purposes without screwing up the original method'
+    print ''
     print 'starPos()'
     print 'The method starPos() will read the FITS header information of a FITS image that has been aligned and cropped in AstroImageJ.'
     print 'INSTRUCTIONS: There are no specific arguments needed for this method to work.'
@@ -136,63 +139,25 @@ def read(prefix='',Verbose=False):
 
     return hjdAll, fluxAll, unctAll
 
-def loadAndPlot(iShow=[0], inFile='lightcurves.cPickle', convertTimes=True):
-
-    """Imports the set of lightcurves from disk and plots them """
-
-    try:
-        Dcurves = pickle.load(open(inFile,'r'))
-    except:
-        print("importAndPlot FATAL - problem reading input file %s" %(inFile))
-        return
-
-    # now we unpack the dictionary into the variables we expect (this is really so that we can paste our commands from below)
-    times = Dcurves['times']
-#fluxAll = Dcurves['fluxAll']
-#    unctAll = Dcurves['unctAll']
-
-    sLabelX = 'HJD (days)'
-
-    if convertTimes:
-        times = (times - np.min(times))*1440.
-        sLabelX = 'Minutes elapsed'
-
-    # create the figure when we need it
-    fig = plt.figure(1)
-    fig.clf()
-    ax = fig.add_subplot(111)
-
-    for i in range(len(iShow)):
-        iThis = iShow[i]
-        sLabel = 'Object %i' % (iThis+1)
-        #ax.plot(x,fluxAll[:,iThis], label=sLabel)
-        dum = ax.errorbar(times, Dcurves['fluxAll'][:,iThis], Dcurves['unctAll'][:,iThis],
-                          label=sLabel, lw=1)
-
-        ax.set_xlabel(sLabelX)
-        #ax.set_ylim(-2000, 1000)
-        leg = ax.legend()
-
-    plt.show()
-
-
 def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
-                  outFile='lightcurves.cPickle'):
+                       outFile='lightcurves.cPickle', \
+                       tWidth=500., is2017=True):
     
     plt.style.use('classic') # changing the plot style
     # CALLS READ() ROUTINE TO BRING IN THE DATA
     hjdAll, fluxAll, unctAll = read(prefix=prefix, Verbose=Verbose)
     
-    fig = plt.figure(1)
-    fig.clf()
-    ax = fig.add_subplot(111)
-
+    # let's set up some convenient plot symbols
+    lSyms = ['o', '^', 's', 'x']
+    lColos = ['b', 'g', 'k', 'darkred']
+    lAlphas = [0.5, 1.0, 0.25]
+    
     times = np.copy(hjdAll)
     sLabelX = 'HJD (days)'
     
     if convertTimes:
         times = (hjdAll - np.min(hjdAll))*1440. # 7/17/18: running this method on aligned pyDIA data gives an error pointing to this line
-        sLabelX = 'Minutes elapsed'
+        sLabelX = 'Time (minutes)'
 
 # print the shape of the big arrays we've built
     print("read_and_plot INFO: array shapes:", np.shape(times), np.shape(fluxAll), np.shape(unctAll))
@@ -202,21 +167,142 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
     pickle.dump(DOut,open(outFile,'w'))
 
 #x=np.arange(len(fluxAll))
+    fig = plt.figure(1)
+    fig.clf()
+     # fig.add_subplot(151) initializes a 1 row by 5-plot figure with 1 being the first of 5. Increment by 152, 153, etc.
     
-    for i in range(len(iShow)):
-        iThis = iShow[i]
-        sLabel = 'Object %i' % (iThis+1)
-        #ax.plot(x,fluxAll[:,iThis], label=sLabel)
-        dum = ax.errorbar(times, fluxAll[:,iThis], unctAll[:,iThis], label=sLabel, lw=1)
-        plt.scatter(times, fluxAll[:,iThis], alpha=0.5)
-    ax.set_xlabel(sLabelX)
-    ax.set_ylim(-5000, 5000)
-    leg = ax.legend()
+    #daysLo = np.array([0., 1000.,2000.,3000.,4000.]) # FOR 2018A (5 NIGHTS)
+    if is2017:
+        daysLo = np.array([0., 1500.,2700.,4200.,5700.,7000.]) # FOR 2017B (6 NIGHTS)
+        dayLast = 7500.
+    else:
+        daysLo = np.array([0., 1400.,2800.,4300.,5700.])
+        dayLast = 6100.
+        
+    daysHi = np.roll(daysLo, -1)
+    daysHi[-1] = dayLast
+        
+    # daysHi[-1] = 7500. # for 2017B
+    #daysHi[-1] = 5000. # for 2018
 
-    # shows the lightcurve plot
+    # variables to hold the minmax values thus far in either object - to help standardize the vertical scale
+    yMin = 1e6
+    yMax = -1e6
+
+    # initialize the axis list
+    LAxes = []
+    
+    for iNight in range(np.size(daysLo)):
+        timeLo = daysLo[iNight]
+        timeHi = daysHi[iNight]
+        bNight = (times >= timeLo) & (times < timeHi)
+        if np.sum(bNight)<1:
+            continue
+        # generate the subplot
+        
+        # **** FOR 2017B DATA ****
+
+        nNights = np.size(daysLo)
+        
+        ax = fig.add_subplot(1,nNights,iNight+1) # counts from 1 not 0
+        # **** FOR 2018A DATA ****
+        # ax = fig.add_subplot(1,5,iNight+1) # 
+            
+        # scatterplot
+       # if not testChunks:
+            #dum1 = ax.scatter(times[bNight], fluxAll[bNight,iThis], label=sLabel)
+        #else:
+         #   # just as a debug, let's actually show the limits
+         #   dum1 = ax.scatter(times, fluxAll[:,iThis], label=sLabel)
+         #   yLims = np.copy(ax.get_ylim())
+         #   dum2 = ax.plot([timeLo, timeLo], [yLims[0], yLims[1]], 'k--')
+         #   dum3 = ax.plot([timeHi, timeHi], [yLims[0], yLims[1]], 'k-')
+        
+        for i in range(len(iShow)):
+            iThis = iShow[i]            
+            sLabel = 'Object %i' % (iThis+1)
+
+            # let's also set plot symbols and colors
+            plotSym = lSyms[i % len(lSyms)]
+            plotCol = lColos[i % len(lSyms)]
+            plotAlp = lAlphas[i % len(lAlphas)]
+            
+            dum = ax.errorbar(times[bNight], fluxAll[bNight,iThis], unctAll[bNight,iThis], label=sLabel, lw=1, ls='None', \
+                              color=plotCol, ecolor=plotCol, marker=plotSym, markersize=3, \
+                              alpha=plotAlp)
+
+            # find the minmax values
+            fluxMin = np.min(fluxAll[bNight ,iThis] - unctAll[bNight,iThis]) 
+            fluxMax = np.max(fluxAll[bNight, iThis] + unctAll[bNight,iThis])
+            if fluxMax > yMax:
+                yMax = np.copy(fluxMax)
+
+            if fluxMin < yMin:
+                yMin = np.copy(fluxMin)
+                
+
+            #print "INFO: yMin %.2f" % (yMin)
+
+        ax.set_title('Night %i' % (iNight + 1))
+            
+        # setting horizontal axis range
+        ax.set_xlim(timeLo, timeHi)
+        # print 'np.sum(bNight) = ',np.sum(bNight)
+        # setting the horizontal axis range from the data.
+        tMin = np.min(times[bNight])-10.
+        tMax = tMin + tWidth
+        ax.set_xlim(tMin, tMax)
+        # ax.set_xlim(np.min(times[bNight])-10., np.max(times[bNight])+10.)
+
+           
+        ax.set_xlabel(sLabelX)
+        ax.set_ylim(-5000, 5000)
+        leg = ax.legend()
+
+        # to give us access to the axis outside the loop, let's add it to our axis-list
+        LAxes.append(ax)
+
+        
+        
+        # set up the time limits
+    
+        #    #daysHi[-1] = 5000. # for 2018A
+        #    daysHi[-1] = 7500. # for 2017B
+
+        #    print "INFO::"
+        #    print daysLo
+        #    print daysHi
+            
+        #    for iObject in iShow:
+        #        ax.scatter(times[bNight], fluxAll[bNight,iObject], label=sLabel)
+        #    # daysHi = daysLo+1
+        
+        #    # shows the lightcurve plot
+
+    # let's loop back through the axes to set the vertical limits
+    axSz = np.max([np.abs(yMin), np.abs(yMax)])
+    axSz *= 1.1
+    for ax in LAxes:
+        ax.set_ylim(0.-axSz, 0.+axSz)
+
+        ax.grid(which='both')
+
+    # let's remove the vertical tick marks from plots 1-end
+    for iAx in range(1, len(LAxes)):
+        LAxes[iAx].set_yticklabels([])
+        
+    LAxes[0].set_ylabel('Flux')
+
+    fig.subplots_adjust(wspace=0.05)
+    
     plt.show()
     
-
+    # fig.savefig('myname.pdf') would come here.
+    if is2017:
+        fig.savefig('lightcurve2017B.pdf')
+        
+    else:
+        fig.savefig('lightcurve2018A.pdf')
 
     return fluxAll, unctAll
  
@@ -450,15 +536,45 @@ def starPos(degFitX=2, sTitl=''):
         
         print fileName, 'SAVED' 
             # save the figures
-#figx.savefig('fig_shiftsVsTime.pdf')
-#    figxy.savefig('fig_shiftsVsShift.pdf')
-
-# plt.show(block=False)
-
-#print xyShift
-
-# finds the largest reisdual values and scales the x and y limits of the plot accordingly
-#def resid():
 
 
+# old method -- use read_and_plot() instead
 
+def loadAndPlot(iShow=[0], inFile='lightcurves.cPickle', convertTimes=True):
+
+    """Imports the set of lightcurves from disk and plots them """
+
+    try:
+        Dcurves = pickle.load(open(inFile,'r'))
+    except:
+        print("importAndPlot FATAL - problem reading input file %s" %(inFile))
+        return
+
+    # now we unpack the dictionary into the variables we expect (this is really so that we can paste our commands from below)
+    times = Dcurves['times']
+#fluxAll = Dcurves['fluxAll']
+#    unctAll = Dcurves['unctAll']
+
+    sLabelX = 'HJD (days)'
+
+    if convertTimes:
+        times = (times - np.min(times))*1440.
+        sLabelX = 'Time (minutes)'
+
+    # create the figure when we need it
+    fig = plt.figure(1)
+    fig.clf()
+    ax = fig.add_subplot(111)
+
+    for i in range(len(iShow)):
+        iThis = iShow[i]
+        sLabel = 'Object %i' % (iThis+1)
+        #ax.plot(x,fluxAll[:,iThis], label=sLabel)
+        dum = ax.errorbar(times, Dcurves['fluxAll'][:,iThis], Dcurves['unctAll'][:,iThis],
+                          label=sLabel, lw=1)
+
+        ax.set_xlabel(sLabelX)
+        #ax.set_ylim(-2000, 1000)
+        leg = ax.legend()
+
+    plt.show()

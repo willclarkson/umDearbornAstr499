@@ -141,7 +141,7 @@ def read(prefix='',Verbose=False):
 
 def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
                        outFile='lightcurves.cPickle', \
-                       tWidth=500., is2017=True):
+                       tWidth=500., is2017=True, szOverride=0):
     
     plt.style.use('classic') # changing the plot style
     # CALLS READ() ROUTINE TO BRING IN THE DATA
@@ -150,7 +150,7 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
     # let's set up some convenient plot symbols
     lSyms = ['o', '^', 's', 'x']
     lColos = ['b', 'g', 'k', 'darkred']
-    lAlphas = [0.5, 1.0, 0.25]
+    lAlphas = [0.25, 0.25, 0.25]
     
     times = np.copy(hjdAll)
     sLabelX = 'HJD (days)'
@@ -240,7 +240,7 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
             if fluxMin < yMin:
                 yMin = np.copy(fluxMin)
                 
-
+            
             #print "INFO: yMin %.2f" % (yMin)
 
         ax.set_title('Night %i' % (iNight + 1))
@@ -278,20 +278,22 @@ def read_and_plot(iShow = [0], convertTimes=True, prefix='', Verbose=False, \
         #    # daysHi = daysLo+1
         
         #    # shows the lightcurve plot
-
+           
     # let's loop back through the axes to set the vertical limits
     axSz = np.max([np.abs(yMin), np.abs(yMax)])
     axSz *= 1.1
+    if szOverride > 0:
+        axSz = np.copy(szOverride)
     for ax in LAxes:
         ax.set_ylim(0.-axSz, 0.+axSz)
-
+        
         ax.grid(which='both')
-
+        
     # let's remove the vertical tick marks from plots 1-end
     for iAx in range(1, len(LAxes)):
         LAxes[iAx].set_yticklabels([])
         
-    LAxes[0].set_ylabel('Flux')
+    LAxes[0].set_ylabel('Flux ($W/m^{2}$)')
 
     fig.subplots_adjust(wspace=0.05)
     

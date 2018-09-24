@@ -1,5 +1,3 @@
-#2018-08-13: v404_test for Christian's account. SHOULD NOT BE PUSHED TO GITHUB!!!
-
 # All imports from terminal first
 
 import matplotlib.pylab as plt
@@ -24,9 +22,14 @@ try:
 	t99A = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/mv4_990706_apcorr.dat")
 	t99B = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/mv4_990707_apcorr.dat")
 	t03 = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/28_July_2003_iac80.qdp")
-	t17 = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2017.txt")
-	t18A = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2018A.txt")
-	t18B = loadOld.loadPhot(fileIn="../../../Desktop/2018B_Night5.txt")
+	t17 = loadOld.loadPhot(fileIn="../../../Desktop/v404_2017.txt")
+	t18A = loadOld.loadPhot(fileIn="../../../Desktop/v404_2018A.txt")
+	t18B = loadOld.loadPhot(fileIn="../../../Desktop/2018B_Night1.txt")
+
+
+	#t17 = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2017.txt")
+	#t18A = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2018A.txt")
+
 except UnboundLocalError:
 	print "One or more files is in the wrong directory. Please edit the script to ensure the code references the correct directory."
 
@@ -118,7 +121,6 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	elif data == '2018A':
 		tbl = t18A
 		#print warn3
-		print "WARNING: The current datafile does not contain the last night of data!"
 	elif data == '2018B':
 		tbl = t18B
 	else:

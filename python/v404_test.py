@@ -24,7 +24,7 @@ try:
 	t03 = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/28_July_2003_iac80.qdp")
 	t17 = loadOld.loadPhot(fileIn="../../../Desktop/v404_2017.txt")
 	t18A = loadOld.loadPhot(fileIn="../../../Desktop/v404_2018A.txt")
-	t18B = loadOld.loadPhot(fileIn="../../../Desktop/2018B_MDM.txt")
+	t18B = loadOld.loadPhot(fileIn="../../../Desktop/2018B.txt")
 
 
 	#t17 = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2017.txt")
@@ -643,22 +643,23 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	plt.figure(0)
 	plt.clf()
-	# if data == '2018B':
-	# 	dum0 = plt.scatter(jd[goodErr], mag[goodErr],\
-	# 					  alpha=1., c=flagColor[goodErr], s=16, \
-	# 					  cmap='inferno', zorder=25, \
-	# 					  edgecolor='0.4')
-	# 	if errorbars:
-	# 			plt.errorbar(jd[goodErr], mag[goodErr], yerr=dy[goodErr], fmt='o', \
-	# 					     ms=1, ecolor='0.3', alpha=0.5, \
-	# 					     zorder=10)
-	# else:
-	dum0 = plt.scatter(jd, mag,\
+	if data == '2018B':
+		dum0 = plt.scatter(jd, mag,\
+						  alpha=1., c=tbl['telescope'], s=16, \
+						  cmap='RdYlGn_r', zorder=25, \
+						  edgecolor='0.4')
+		plt.colorbar(dum0)
+		if errorbars:
+				plt.errorbar(jd, mag, yerr=dy, fmt='o', \
+						     ms=1, ecolor='0.3', alpha=0.5, \
+						     zorder=10)
+	else:
+		dum0 = plt.scatter(jd, mag,\
 						  alpha=1., c=flagColor, s=16, \
 						  cmap='inferno', zorder=25, \
 						  edgecolor='0.4')
-	if errorbars:
-		plt.errorbar(jd, mag, yerr=dy, fmt='o', \
+		if errorbars:
+			plt.errorbar(jd, mag, yerr=dy, fmt='o', \
 						     ms=1, ecolor='0.3', alpha=0.5, \
 						     zorder=10)
 

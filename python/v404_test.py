@@ -14,24 +14,24 @@ from astroML.time_series import lomb_scargle, lomb_scargle_bootstrap
 # for testing existence of files
 import os
 
-# Reading the table
+# Reading the tables
 
 try:
-	t92 = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/199208elip_R.dat")
-	t98 = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/elipR1998.dat")
-	t99A = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/mv4_990706_apcorr.dat")
-	t99B = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/mv4_990707_apcorr.dat")
-	t03 = loadOld.loadPhot(fileIn="../../../../Shared/Data/v404Cyg_zurita04/28_July_2003_iac80.qdp")
-	t17 = loadOld.loadPhot(fileIn="../../../Desktop/v404_2017.txt")
-	t18A = loadOld.loadPhot(fileIn="../../../Desktop/v404_2018A.txt")
-	t18B = loadOld.loadPhot(fileIn="../../../Desktop/2018B.txt")
+	t92 = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/199208elip_R.dat")
+	t98 = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/elipR1998.dat")
+	t99A = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/mv4_990706_apcorr.dat")
+	t99B = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/mv4_990707_apcorr.dat")
+	t03 = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/28_July_2003_iac80.qdp")
+	t17 = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/2017_Gain4.txt")
+	t18A = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/v404_2018A.txt")
+	t18B = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/2018B.txt")
 
 
 	#t17 = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2017.txt")
 	#t18A = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2018A.txt")
 
 except UnboundLocalError:
-	print "One or more files is in the wrong directory. Please edit the script to ensure the code references the correct directory."
+	print "One or more files not found. Check the directories indicated in the source code."
 
 ## t1 = Table.read('2018-03-09_v404CygPhotom_flag1.csv', format='ascii.csv') #Assuming the file is run from the Desktop, since that is where the script is saved
 ## t2 = Table.read('2018-03-09_v404CygPhotom_flag2.csv', format='ascii.csv')

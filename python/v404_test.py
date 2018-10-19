@@ -88,7 +88,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotBinnedNoiseData=False, plotBinnedNoiseLS=False, \
 	       plotSubtractedData=False, plotEllipsoidal=False, limit=0.1, \
 	       plotBinnedOnSubtracted=False, writeEllipsoidal=False, \
-	       overlayEllipsoidal=False):
+	       overlayEllipsoidal=False, compareEllipsoidals=False):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
@@ -438,7 +438,6 @@ def go(pctile=10., iCheck=1, useMags=True, \
  		ax4 = fig4.add_subplot(111)
  		ax4.plot(tBin, fBinSub, 'ko')
  		plt.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
-
  	
  	if plotBinnedLS:
  		fig5 = plt.figure(5)
@@ -594,6 +593,22 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			tLo = np.copy(phaseLow)
 			tGrid = np.copy(phaseGrid)
 			cScatt = jd - np.min(jd)
+
+
+		if compareEllipsoidals:
+	 		p1_17 = np.loadtxt("/Users/amblevin/Desktop/p12017.txt")
+	 		pLow_17 = np.loadtxt("/Users/amblevin/Desktop/pLow2017.txt")
+	 		p1_18 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt")
+	 		pLow_18 = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt")
+
+	 		fig10 = plt.figure(10)
+	 		fig10.clf()
+	 		ax10 = fig10.add_subplot(111)
+	 		ax10.plot(tGrid[lG], twoSine(p1_17,xGrid[lG]), c='blue', label='2017 Ellipsoidal')
+	 		ax10.plot(tGrid[lG], twoSine(pLow_17,xGrid[lG]), c='blue', ls='--', label='2017 Lower')
+	 		ax10.plot(tGrid[lG], twoSine(p1_18,xGrid[lG]), c='orange', label='2018 Ellipsoidal')
+	 		ax10.plot(tGrid[lG], twoSine(pLow_18,xGrid[lG]), c='orange', ls='--', label='2018 Lower')
+	 		plt.legend()
 
 		plt.figure(1)
 		plt.clf()

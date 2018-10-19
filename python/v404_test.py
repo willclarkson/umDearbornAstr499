@@ -86,7 +86,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotNoiseData=False, \
 	       plotNoiseLS=False, plotHistogram=False, \
 	       plotBinnedNoiseData=False, plotBinnedNoiseLS=False, \
-	       plotSubtractedData=False, plotEllipsoidal=False, limit=0.1):
+	       plotSubtractedData=False, plotEllipsoidal=False, limit=0.1, \
+	       plotBinnedOnSubtracted=False):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
@@ -390,6 +391,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
  		fig11.clf()
  		ax11 = fig11.add_subplot(111)
  		ax11.scatter(jd, fSub)
+ 		if plotBinnedOnSubtracted:
+ 			ax11.plot(tBin, fBinSub, 'bo')
+ 			ax11.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
 
 		# 2018-04-07 WIC - write the binned subtracted lightcurve to
 		# file to plot with other methods.

@@ -87,7 +87,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotNoiseLS=False, plotHistogram=False, \
 	       plotBinnedNoiseData=False, plotBinnedNoiseLS=False, \
 	       plotSubtractedData=False, plotEllipsoidal=False, limit=0.1, \
-	       plotBinnedOnSubtracted=False):
+	       plotBinnedOnSubtracted=False, writeEllipsoidal=False, \
+	       overlayEllipsoidal=False):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
@@ -340,12 +341,22 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
  	if plotEllipsoidal:
 	 	p0 = np.array([a1, phi, orbital_period, a2, diff])
-	 	p1, success = \
-		    optimize.leastsq(errFunc, pGuess[:], args=(jd, mag), \
+	 	if overlayEllipsoidal:
+	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt", unpack=True)
+	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt", unpack=True)
+	 	else:
+	 		p1, success = \
+		    	optimize.leastsq(errFunc, pGuess[:], args=(jd, mag), \
 					     maxfev=int(1e6), ftol=1e-10)
-	 	pLow, successLow = \
-		    optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), \
+	 		pLow, successLow = \
+		    	optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), \
 					     maxfev=int(1e6), ftol=1e-10)
+
+		if writeEllipsoidal:
+			np.savetxt('p1'+str(data)+'.txt', p1)
+			np.savetxt('pLow'+str(data)+'.txt', pLow)
+			print "Saved p1: ", p1
+			print "Saved pLow: ", pLow
 
 	 	# by this point we have the ellipsoidal modulation fit to the
 	 	# dataset

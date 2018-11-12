@@ -100,6 +100,10 @@ def load18table():
 	col_n18 = Column(name='fluxNeighbor', data=n18)
 	tbl18A.add_column(col_n18)
 
+	r18 = flux18[:,5]
+	col_r18 = Column(name='fluxRandomStar', data=r18)
+	tbl18A.add_column(col_r18)
+
 
 	v18e = fluxErr18[:,4]
 	col_v18e = Column(name='fluxErrV404', data=v18e)
@@ -117,6 +121,10 @@ def load18table():
 	col_n18e = Column(name='fluxErrNeighbor', data=n18e)
 	tbl18A.add_column(col_n18e)
 
+	r18e = fluxErr18[:,5]
+	col_r18e = Column(name='fluxErrRandomStar', data=r18e)
+	tbl18A.add_column(col_r18e)
+
 	return tbl18A
 
 #test2 = load18table()
@@ -127,7 +135,8 @@ def load18table():
 # Note to self: If/when DIA is done on 2018B photometry, call the first table 'tbl2018' and the second 'tbl18B'
 
 
-def plot(data='2017', errorbars=True, nonEssentials=False):
+def plot(data='2018', errorbars=True, nonEssentials=False, \
+         c404=0., cneib=0., ccontam=0.):
 	if data == '2017':
 		tbl = load17table()
 	elif data == '2018':
@@ -149,6 +158,8 @@ def plot(data='2017', errorbars=True, nonEssentials=False):
 	dyC = tbl['fluxErrContam']
 	dyC4 = tbl['fluxErrC4']
 	dyN = tbl['fluxErrNeighbor']
+	fluxR = tbl['fluxRandomStar']
+	dyR = tbl['fluxErrRandomStar']
 
 
 	# Plot of time vs. flux(V404)
@@ -196,13 +207,37 @@ def plot(data='2017', errorbars=True, nonEssentials=False):
 
 	fig5 = plt.figure(5)
 	fig5.clf()
-	dum5 = plt.scatter(fluxV, fluxC, alpha=0.4, s=16, zorder=25, c=time, cmap='hsv')
+	dum5 = plt.scatter(fluxV+c404, fluxC+ccontam, alpha=0.4, s=16, zorder=25, c=time, cmap='hsv')
 	if errorbars:
-		plt.errorbar(fluxV, fluxC, xerr=dyV, yerr=dyC, fmt='o', ms=1, ecolor='0.3', alpha=0.2, zorder=10)
+		plt.errorbar(fluxV+c404, fluxC+ccontam, xerr=dyV, yerr=dyC, fmt='o', ms=1, ecolor='0.3', alpha=0.2, zorder=10)
 	plt.xlabel('Flux (V404)')
 	plt.ylabel('Flux (Contaminant)')
 	plt.colorbar(dum5)
 
+        # let's do a ratio plot
+        if ccontam > 0. and c404 > 0.:
+                absV = fluxV + c404
+                absC = fluxC + ccontam
+                
+                ratioContam = absC / (absV + absC)
+                unctyRatioSquared = (dyV**2 + dyC**2)/(absV + absC)**2 + \
+                                    (dyC/absC)**2
+                unctyOfRatio = ratioContam * np.sqrt(unctyRatioSquared)
+
+                # now let's plot this
+                fig55=plt.figure(55)
+                fig55.clf()
+                dum55 = plt.scatter(absV, ratioContam, alpha=0.4, s=16, \
+                                    zorder=25, c=time, cmap='hsv')
+
+                if errorbars:
+                        dum55b = plt.errorbar(absV, ratioContam, xerr=dyV, \
+                                              yerr=unctyOfRatio, fmt='o', ms=1, \
+                                              ecolor='0.3', alpha=0.2, zorder=10)
+                plt.xlabel('Flux (V404)')
+                plt.ylabel('(Contaminant / (V404 + contaminant))')
+                plt.colorbar(dum55)
+                
 	# Plot of Flux(V404) vs. Flux(Neighbor)
 
 	fig6 = plt.figure(6)
@@ -258,4 +293,15 @@ def plot(data='2017', errorbars=True, nonEssentials=False):
 		plt.xlabel('Flux (Neighbor)')
 		plt.ylabel('Flux (C4)')
 		plt.colorbar(dum10)
+
+		# Plot of Flux(Random Star) vs. Flux(C4)
+
+		fig11 = plt.figure(11)
+		fig11.clf()
+		dum11 = plt.scatter(fluxR, fluxC4, alpha=0.4, s=16, zorder=25, c=time, cmap='hsv')
+		if errorbars:
+			plt.errorbar(fluxR, fluxC4, xerr=dyR, yerr=dyC4, fmt='o', ms=1, ecolor='0.3', alpha=0.2, zorder=10)
+		plt.xlabel('Flux (Random Star (#6 on Map))')
+		plt.ylabel('Flux (C4)')
+		plt.colorbar(dum11)
 

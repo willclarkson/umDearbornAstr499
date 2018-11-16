@@ -22,9 +22,9 @@ try:
 	t99A = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/mv4_990706_apcorr.dat")
 	t99B = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/mv4_990707_apcorr.dat")
 	t03 = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/28_July_2003_iac80.qdp")
-	t17 = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/2017_Gain4.txt")
-	t18A = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/v404_2018A.txt")
-	t18B = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/2018B.txt")
+	t17 = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/G4_2017.txt")
+	t18A = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/G4_2018A.txt")
+	t18B = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/2018B_Sorted.txt")
 
 
 	#t17 = loadOld.loadPhot(fileIn="../../../MDM/austinsFiles/v404_2017.txt")

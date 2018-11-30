@@ -88,7 +88,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotBinnedNoiseData=False, plotBinnedNoiseLS=False, \
 	       plotSubtractedData=False, plotEllipsoidal=False, limit=0.1, \
 	       plotBinnedOnSubtracted=False, writeEllipsoidal=False, \
-	       overlayEllipsoidal=False, compareEllipsoidals=False):
+	       overlayEllipsoidal=False, compareEllipsoidals=False, \
+	       genOS=False, moreTimes=False, genTS=False):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
@@ -233,7 +234,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	#mag = tbl['Average Mag(V404)']  # superseded by the material above.
 	#dy = 1.086 * tbl['rel_flux_err_T1']
-	num = len(mag)
+	num = len(jd)
 
 
 	if not useMags:
@@ -313,11 +314,11 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	# Initial Guess for Parameters
 
 	if plotEllipsoidal:
-		a1 = 0.1 # First Amplitude
-		phi = -4.0 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift
+		a1 = 0.1 # First Amplitude -- 'DEFAULT' VALUE IS 0.1
+		phi = -4.0 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift-- Default is -4.0
 		orbital_period = 6.4714 # According to Pavlenko et al (1996)
-		a2 = 0.2 # Second Amplitude
-		diff = 16.6 # Shift due to average magnitude
+		a2 = 0.2 # Second Amplitude -- 'DEFAULT' VALUE IS 0.2
+		diff = 0.3 # Shift due to average magnitude- Default is 16.6
 
 		p = [a1, phi, orbital_period, diff, a2] #This is for my attempt
 
@@ -703,6 +704,97 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	if useMags:
 		plt.ylim([yLims[1], yLims[0]])	
 
+	# Generate Data along a single sine-wave and plot it
+
+	if genOS:
+		if not plotEllipsoidal:
+			print "WARNING: Generation will not work unless plotEllipsoidal=True"
+
+		# set up time array to use for generations
+		tGen = np.copy(jd)
+		dy1 = np.copy(dy)
+
+		if moreTimes:
+			tRange = np.max(jd) - np.min(jd)
+			tGen = np.hstack(( jd, jd+tRange+1.0))
+			dy1 = np.hstack(( dy, dy ))
+
+		xDum = oneSine(p0,tGen)
+		#xDum = (tDum + mag)
+		yDum = xDum + np.random.normal(size=np.size(xDum))*dy1
+		np.savetxt('yDum1.txt', yDum)
+
+		p1s, success1s = \
+		    	optimize.leastsq(osEF, pGuess[:], args=(tGen, yDum), \
+					     maxfev=int(1e6), ftol=1e-10)
+		# predicted at the measurement dates
+		yPredict = oneSine(p1s, jd)
+
+		# fine-grained version for plotting
+		tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=1000)
+		yFine = oneSine(p1s, tFine)
+
+		plt.figure(12)
+		plt.clf()
+		plt.errorbar(tGen, yDum, dy1, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
+		plt.plot(tFine, yFine, color='r', ls='--')
+		#plt.plot(jd, (1.09084866e-01*np.sin((2.0*np.pi*jd/7.65892886e+00)+8.90158004e+03)+1.69284759e+01), c='orange')
+
+		yLims = np.copy(plt.gca().get_ylim())
+
+		if useMags:
+			plt.ylim([yLims[1], yLims[0]])
+
+		print "p0: ", p0
+		print "p1s: ", p1s
+		print "success1s: ", success1s
+		#print "size(xDum) ", np.size(xDum)
+
+	if genTS:
+		if not plotEllipsoidal:
+			print "WARNING: Generation will not work unless plotEllipsoidal=True"
+
+		# set up time array to use for generations
+		tGen2 = np.copy(jd)
+		dy2 = np.copy(dy)
+
+		if moreTimes:
+			tRange2 = np.max(jd) - np.min(jd)
+			tGen2 = np.hstack(( jd, jd+tRange2+1.0))
+			dy2 = np.hstack(( dy, dy ))
+
+		xDum2 = twoSine(p0,tGen2)
+		#xDum = (tDum + mag)
+		yDum2 = xDum2 + np.random.normal(size=np.size(xDum2))*dy2
+		np.savetxt('yDum2.txt', yDum2)
+
+		p2s, success2s = \
+		    	optimize.leastsq(errFunc, pGuess[:], args=(tGen2, yDum2), \
+					     maxfev=int(1e6), ftol=1e-10)
+		# predicted at the measurement dates
+		yPred2 = twoSine(p2s, jd)
+
+		# fine-grained version for plotting
+		tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
+		yFine2 = twoSine(p2s, tFine2)
+
+		plt.figure(13)
+		plt.clf()
+		plt.errorbar(tGen2, yDum2, dy2, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
+		plt.plot(tFine2, yFine2, color='r', ls='--')
+
+		yLims = np.copy(plt.gca().get_ylim())
+
+		if useMags:
+			plt.ylim([yLims[1], yLims[0]])
+
+		print "p0: ", p0
+		print "p2s: ", p2s
+		print "success2s: ", success2s
+		#print "xDum2: ", xDum2
+		#print "size(xDum2) ", np.size(xDum2)
+
+		
 
 def oneSine(p,x):
 
@@ -743,20 +835,26 @@ def twiceSine(p,x, debug=False):
 
 	##return ((p[0]*np.sin(((2*np.pi*x)+p[1])/p[2]))+(p[3]*np.sin(((2*np.pi*x)+p[1]/0.5*p[2]))))+p[4] # My attempt at the function on the board...
 
-def twoSine(p,x):
+# def twoSine(p,x):
 
-	"""'Hardcoded' double sine"""
+# 	"""'Hardcoded' double sine"""
 
-	sineOne = p[0] * np.sin(2.0*np.pi*x/p[2] + p[1]) + p[3]
-	sineTwo = p[4] * np.sin(4.0*np.pi*x/p[2] + p[1])
+# 	sineOne = p[0] * np.sin(2.0*np.pi*x/p[2] + p[1]) + p[3]
+# 	sineTwo = p[4] * np.sin(4.0*np.pi*x/p[2] + p[1])
 
-	return sineOne + sineTwo
+# 	return sineOne + sineTwo
 
 def errFunc(p, x, y):
 
     """The error function"""
 
     return twoSine(p, x) - y
+
+def osEF(p, x, y):
+
+	"""The error function for OneSine"""
+
+	return oneSine(p, x) - y
 
 def makeBounds(times=np.array([]), buf=0.3, interval=1.):
 

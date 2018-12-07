@@ -314,13 +314,15 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	# Initial Guess for Parameters
 
 	if plotEllipsoidal:
-		a1 = 0.1 # First Amplitude -- 'DEFAULT' VALUE IS 0.1
+		a1 = 0.1# 0.02 # First Amplitude -- 'DEFAULT' VALUE IS 0.1
 		phi = -4.0 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift-- Default is -4.0
 		orbital_period = 6.4714 # According to Pavlenko et al (1996)
-		a2 = 0.2 # Second Amplitude -- 'DEFAULT' VALUE IS 0.2
-		diff = 0.3 # Shift due to average magnitude- Default is 16.6
+		diff = 16.6 # Shift due to average magnitude- Default is 16.6
+		a2 = 0.2 # Second Amplitude -- 'DEFAULT' VALUE IS 0.2 
+		
 
 		p = [a1, phi, orbital_period, diff, a2] #This is for my attempt
+		p0, p1, p2, p3, p4 = a1, phi, orbital_period, diff, a2
 
 		##p = [a1, phi, orbital_period, diff] #for the equation in line 33
 
@@ -341,7 +343,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 
  	if plotEllipsoidal:
-	 	p0 = np.array([a1, phi, orbital_period, a2, diff])
+	 	p0 = np.array([a1, phi, orbital_period, diff, a2])
 	 	if overlayEllipsoidal:
 	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt", unpack=True)
 	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt", unpack=True)
@@ -605,10 +607,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	 		fig10 = plt.figure(10)
 	 		fig10.clf()
 	 		ax10 = fig10.add_subplot(111)
-	 		ax10.plot(tGrid[lG], twoSine(p1_17,xGrid[lG]), c='blue', label='2017 Ellipsoidal')
-	 		ax10.plot(tGrid[lG], twoSine(pLow_17,xGrid[lG]), c='blue', ls='--', label='2017 Lower')
-	 		ax10.plot(tGrid[lG], twoSine(p1_18,xGrid[lG]), c='orange', label='2018 Ellipsoidal')
-	 		ax10.plot(tGrid[lG], twoSine(pLow_18,xGrid[lG]), c='orange', ls='--', label='2018 Lower')
+	 		ax10.plot(tGrid[lG], twoSine(p1_17, xGrid[lG]), c='blue', label='2017 Ellipsoidal')
+	 		ax10.plot(tGrid[lG], twoSine(pLow_17, xGrid[lG]), c='blue', ls='--', label='2017 Lower')
+	 		ax10.plot(tGrid[lG], twoSine(p1_18, xGrid[lG]), c='orange', label='2018 Ellipsoidal')
+	 		ax10.plot(tGrid[lG], twoSine(pLow_18, xGrid[lG]), c='orange', ls='--', label='2018 Lower')
 	 		plt.legend()
 
 		plt.figure(1)
@@ -619,8 +621,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 					  cmap='inferno', zorder=25, \
 					  edgecolor='0.4')
 		plt.plot(tLo, yLow, 'ko', ms=7, zorder=25)
-		plt.plot(tGrid[lG], twoSine(pLow,xGrid[lG]), c='k')
-		plt.plot(tGrid[lG], twoSine(p1,xGrid[lG]), c='g', ls='--')
+		plt.plot(tGrid[lG], twoSine(pLow, xGrid[lG]), c='k')
+		plt.plot(tGrid[lG], twoSine(p1, xGrid[lG]), c='g', ls='--')
 		# plt.scatter(jd, ySub, c='violet', s=16)
 		if errorbars:
 			plt.errorbar(tSho, mag, yerr=dy, fmt='o', \
@@ -722,22 +724,33 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		xDum = oneSine(p0,tGen)
 		#xDum = (tDum + mag)
 		yDum = xDum + np.random.normal(size=np.size(xDum))*dy1
-		np.savetxt('yDum1.txt', yDum)
+		#np.savetxt('yDum1.txt', yDum)
 
-		p1s, success1s = \
-		    	optimize.leastsq(osEF, pGuess[:], args=(tGen, yDum), \
-					     maxfev=int(1e6), ftol=1e-10)
+		# p1s, success1s = \
+		#     	optimize.leastsq(osEF, pGuess[:], args=(tGen, yDum), \
+		# 			     maxfev=int(1e6), ftol=1e-10)
 		# predicted at the measurement dates
-		yPredict = oneSine(p1s, jd)
+		#yPredict = oneSine(p1s, jd)
+
+		# 2018-12-07 testing curve_fit on oneSine!
+
+		boundsOne = ([0.09, -4.01, 6.4713, 16.3, -np.inf], [0.11, -3.99, 6.4715, 16.9, np.inf])
+
+		print("Double-checking oneSine Guess:", pGuess)
+
+		popt1, pcov1 = optimize.curve_fit(oneSine4fit, xDum, yDum, bounds=boundsOne, p0=p0, method='trf', check_finite=True, maxfev=1e9)
+		print "popt1: ", popt1
+
 
 		# fine-grained version for plotting
-		tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=1000)
-		yFine = oneSine(p1s, tFine)
+		#tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=1000)
+		#yFine = oneSine(p1s, tFine)
 
 		plt.figure(12)
 		plt.clf()
 		plt.errorbar(tGen, yDum, dy1, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
-		plt.plot(tFine, yFine, color='r', ls='--')
+		plt.plot(tGen, oneSine4fit(tGen, *popt1), color='r', ls='--')
+		plt.plot(tGen, oneSine4fit(tGen, *p0), color='g', ls=':')
 		#plt.plot(jd, (1.09084866e-01*np.sin((2.0*np.pi*jd/7.65892886e+00)+8.90158004e+03)+1.69284759e+01), c='orange')
 
 		yLims = np.copy(plt.gca().get_ylim())
@@ -745,9 +758,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		if useMags:
 			plt.ylim([yLims[1], yLims[0]])
 
-		print "p0: ", p0
-		print "p1s: ", p1s
-		print "success1s: ", success1s
+		#print "p0: ", p0
+		#print "p1s: ", p1s
+		#print "success1s: ", success1s
 		#print "size(xDum) ", np.size(xDum)
 
 	if genTS:
@@ -763,34 +776,68 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			tGen2 = np.hstack(( jd, jd+tRange2+1.0))
 			dy2 = np.hstack(( dy, dy ))
 
-		xDum2 = twoSine(p0,tGen2)
+		xDum2 = twoSine(p0, tGen2)
 		#xDum = (tDum + mag)
 		yDum2 = xDum2 + np.random.normal(size=np.size(xDum2))*dy2
-		np.savetxt('yDum2.txt', yDum2)
+		#np.savetxt('yDum2.txt', yDum2)
 
-		p2s, success2s = \
-		    	optimize.leastsq(errFunc, pGuess[:], args=(tGen2, yDum2), \
-					     maxfev=int(1e6), ftol=1e-10)
-		# predicted at the measurement dates
-		yPred2 = twoSine(p2s, jd)
+		# 2018-12-03 let's try specifying bounds on the parameters
+		#boundsTwo = ([0.,2.],[0., 2.0*np.pi],[6.46, 6.48],[16.0, 17.0],[0., 2.])
+		#boundsTwo = ([0.,0.,6.46, 16.0, 0.], \
+		#	[2., 2.*np.pi, 6.48, 17.0, 2.0])
 
-		# fine-grained version for plotting
-		tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
-		yFine2 = twoSine(p2s, tFine2)
+		boundsTwo = ([0, -2.0*np.pi, 6.4713, -np.inf, -np.inf], [0.5, 2.0*np.pi, 6.4715, np.inf, np.inf])
+#			0.,0.,6.46, 16.0, 0.], \
+#			[2., 2.*np.pi, 6.48, 17.0, 2.0])
+
+
+		print("DOUBLE-CHECKING THE GUESS:", pGuess)
+			# NOTE - inserting the actual parameters seems to not reproduce the actual data...
+
+		popt2, pcov2 = optimize.curve_fit(twoSine4fit, xDum2, yDum2, bounds=boundsTwo, p0=p0, method='trf')# Guess[:])
+		print "popt2: ", popt2
+		#print "shape(popt): ", np.shape(popt)
+		#print "pcov: ", pcov
+		#print "shape(pcov): ", np.shape(pcov)
+
+		# 2018-12-03 let's try invoking a better minimizer that can handle bounds...
+		#p2s, success2s = \
+		#    	optimize.leastsq(errFunc, pGuess[:], args=(tGen2, yDum2), \
+		#			     maxfev=int(1e6), ftol=1e-10)
+		# let's keep the old version in a comment
+		#p2s, success2s = \
+		#bigfit = \
+		#    	optimize.least_squares(errFunc, pGuess[:], args=(tGen2, yDum2), \
+		#    		bounds=boundsTwo,\
+		#			     max_nfev=int(1e6), ftol=1.0e-10)
+
+		#let's lift out what we want
+		# p2s = np.copy(returnedStuff)
+		# success2s = returnedStuff.status
+		# print("FITTED", np.shape(p2s))
+		# #print(dum)
+		# #return
+		# # predicted at the measurement dates
+		# yPred2 = twoSine(p2s, jd)
+
+		# # fine-grained version for plotting
+		# tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
+		# yFine2 = twoSine(p2s, tFine2)
 
 		plt.figure(13)
 		plt.clf()
 		plt.errorbar(tGen2, yDum2, dy2, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
-		plt.plot(tFine2, yFine2, color='r', ls='--')
+		plt.plot(tGen2, twoSine4fit(tGen2, *popt2), color='r', ls='--')
+		plt.plot(tGen2, twoSine4fit(tGen2, *p0), color='g', ls=':')
 
 		yLims = np.copy(plt.gca().get_ylim())
 
 		if useMags:
 			plt.ylim([yLims[1], yLims[0]])
 
-		print "p0: ", p0
-		print "p2s: ", p2s
-		print "success2s: ", success2s
+		#print "p0: ", p0
+		#print "p2s: ", p2s
+		#print "success2s: ", success2s
 		#print "xDum2: ", xDum2
 		#print "size(xDum2) ", np.size(xDum2)
 
@@ -808,6 +855,19 @@ def twoSine(p,x):
 
 	sineOne = p[0] * np.sin(2.0*np.pi*x/p[2] + p[1]) + p[3]
 	sineTwo = p[4] * np.sin(4.0*np.pi*x/p[2] + p[1])
+
+	return sineOne + sineTwo
+
+def oneSine4fit(x, p0, p1, p2, p3, p4):
+	"""OneSine for fit"""
+
+	return p0 * np.sin(2.0*np.pi*x/p2 + p1) + p3
+
+def twoSine4fit(x, p0, p1, p2, p3, p4):
+	"""TwoSine for fit"""
+
+	sineOne = p0 * np.sin(2.0*np.pi*x/p2 + p1) + p3
+	sineTwo = p4 * np.sin(4.0*np.pi*x/p2 + p1)
 
 	return sineOne + sineTwo
 

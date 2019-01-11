@@ -721,7 +721,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			tGen = np.hstack(( jd, jd+tRange+1.0))
 			dy1 = np.hstack(( dy, dy ))
 
-		parsTrue = [0.1, -4.0]
+		parsTrue = [0.1, -4.0, 16.6]
 
 		xDum = oneSine2019(tGen, *parsTrue)
 
@@ -747,9 +747,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		# 2019-01-11 Testing initial guess for multiple trials; constraining PHI
 
-		aGuess = 0.1
+		aGuess = 1.
 		nSets = 16
 		phiGuess = np.linspace(-8.0, 8.0, num=nSets)
+		oGuess = 16.
 		parsFound = np.zeros((nSets, np.size(parsTrue)))
 
 		iPlot = 0 #0 plots everything; 3 doesn't plot the first 3 plots[0,1, and 2], etc.
@@ -757,9 +758,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# Generate fit using input guesses
 
 		for iSet in range(nSets):
-			p0OS = [aGuess, phiGuess[iSet]]
+			p0OS = [aGuess, phiGuess[iSet], oGuess]
 
-			boundsOS = ([0.0, -np.inf], [0.2, np.inf])
+			boundsOS = ([-np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf])
 
 			try:
 				paramsOS, pcovOS = optimize.curve_fit(oneSine2019, tGen, yDum, p0=p0OS, method='trf',\
@@ -802,7 +803,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 				plt.xlabel('time(jd - 2 400 000)')
 				plt.ylabel('mag')
 
-			plt.plot(tGen, oneSine2019(tGen, *paramsOS), label='fit: a=%5.3f, phi=%5.3f' % tuple(paramsOS), zorder=1)
+			plt.plot(tGen, oneSine2019(tGen, *paramsOS), label='fit: a=%5.3f, phi=%5.3f, offset=%5.3f' % tuple(paramsOS), zorder=1)
 		plt.legend()
 		plt.show()
 
@@ -814,23 +815,28 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		fig13 = plt.figure(13)
 		fig13.clf()
-		ax13a = fig13.add_subplot(211)
+		ax13a = fig13.add_subplot(311)
 		dum13a = ax13a.scatter(phiGuess[phiOKOS], parsFound[phiOKOS,0], color='r', marker='v', zorder=2, edgecolor='0.5')
-		ax13b = fig13.add_subplot(212)
+		ax13b = fig13.add_subplot(312)
 		dum13b = ax13b.scatter(phiGuess[phiOKOS], parsFound[phiOKOS,1], color='r', marker='v', zorder=2, edgecolor='0.5')
+		ax13c = fig13.add_subplot(313)
+		dum13c = ax13c.scatter(phiGuess[phiOKOS], parsFound[phiOKOS,2], color='r', marker='v', zorder=2, edgecolor='0.5')
 
 		ax13a.set_ylabel('Final a')
 		ax13b.set_ylabel('Final phi')
+		ax13c.set_ylabel('Final Offset')
 
 		ax13a.set_ylim(parsTrue[0]-0.2, parsTrue[0]+0.2)
 		ax13b.set_ylim(parsTrue[1]-4, parsTrue[1]+12)
+		ax13c.set_ylim(parsTrue[2]-0.2, parsTrue[2]+0.2)
 
 		# Overplotting the true value
 
-		ax13a.plot(phiGuess, np.repeat(p0[0], np.size(phiGuess)), color='g', lw='1', zorder=1)
-		ax13b.plot(phiGuess, np.repeat(p0[1], np.size(phiGuess)), color='g', lw='1', zorder=1)
+		ax13a.plot(phiGuess, np.repeat(parsTrue[0], np.size(phiGuess)), color='g', lw='1', zorder=1)
+		ax13b.plot(phiGuess, np.repeat(parsTrue[1], np.size(phiGuess)), color='g', lw='1', zorder=1)
+		ax13c.plot(phiGuess, np.repeat(parsTrue[2], np.size(phiGuess)), color='g', lw='1', zorder=1)
 
-		for ax in [ax13a, ax13b]:
+		for ax in [ax13a, ax13b, ax13c]:
 			ax.set_xlabel('Initial guess phi')
 
 		#print "p0: ", p0
@@ -946,10 +952,10 @@ def twoSine4fit(x, p0, p1, p2, p3, p4):
 
 	return sineOne + sineTwo
 
-def oneSine2019(x, a, phi):
+def oneSine2019(x, a, phi, offset):
 	"""Basic single sine ellipsoidal to be fitted."""
 
-	return a * np.sin(2.0*np.pi*x/6.4714 + phi) + 16.6
+	return a * np.sin(2.0*np.pi*x/6.4714 + phi) + offset
 
 def twiceSine(p,x, debug=False):
 

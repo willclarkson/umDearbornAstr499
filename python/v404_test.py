@@ -322,7 +322,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		
 
 		p = [a1, phi, orbital_period, diff, a2] #This is for my attempt
-		p0, p1, p2, p3, p4 = a1, phi, orbital_period, diff, a2
+		#p0, p1, p2, p3, p4 = a1, phi, orbital_period, diff, a2
 
 		##p = [a1, phi, orbital_period, diff] #for the equation in line 33
 
@@ -721,7 +721,11 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			tGen = np.hstack(( jd, jd+tRange+1.0))
 			dy1 = np.hstack(( dy, dy ))
 
-		xDum = oneSine(p0,tGen)
+		parsTrue = [0.1, -4.0]
+
+		xDum = oneSine2019(tGen, *parsTrue)
+
+		print "True Values: ", parsTrue
 		#xDum = (tDum + mag)
 		yDum = xDum + np.random.normal(size=np.size(xDum))*dy1
 		#np.savetxt('yDum1.txt', yDum)
@@ -734,29 +738,100 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		# 2018-12-07 testing curve_fit on oneSine!
 
-		boundsOne = ([0.09, -4.01, 6.4713, 16.3, -np.inf], [0.11, -3.99, 6.4715, 16.9, np.inf])
+		#boundsOne = ([0.09, -4.01, 6.4713, 16.3, -np.inf], [0.11, -3.99, 6.4715, 16.9, np.inf])
 
-		print("Double-checking oneSine Guess:", pGuess)
+		#print("Double-checking oneSine Guess:", pGuess)
 
-		popt1, pcov1 = optimize.curve_fit(oneSine4fit, xDum, yDum, bounds=boundsOne, p0=p0, method='trf', check_finite=True, maxfev=1e9)
-		print "popt1: ", popt1
+		#popt1, pcov1 = optimize.curve_fit(oneSine4fit, xDum, yDum, bounds=boundsOne, p0=p0, method='trf', check_finite=True, maxfev=1e9)
+		#print "popt1: ", popt1
+
+		# 2019-01-11 Testing initial guess for multiple trials; constraining PHI
+
+		aGuess = 0.1
+		nSets = 16
+		phiGuess = np.linspace(-8.0, 8.0, num=nSets)
+		parsFound = np.zeros((nSets, np.size(parsTrue)))
+
+		iPlot = 0 #0 plots everything; 3 doesn't plot the first 3 plots[0,1, and 2], etc.
+
+		# Generate fit using input guesses
+
+		for iSet in range(nSets):
+			p0OS = [aGuess, phiGuess[iSet]]
+
+			boundsOS = ([0.0, -np.inf], [0.2, np.inf])
+
+			try:
+				paramsOS, pcovOS = optimize.curve_fit(oneSine2019, tGen, yDum, p0=p0OS, method='trf',\
+					bounds=boundsOS, sigma=dy1, absolute_sigma=False)
+
+				# slot the best-fit parameters into the results array
+				parsFound[iSet] = np.copy(paramsOS)
+			except:
+				print("WARN- failed fit for trial %i, %.2f" %(iSet, p0OS[1]))
+				iPlot += 1
+				continue
+
+			# fine-grained version for plotting
+			#tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=1000)
+			#yFine = oneSine(p1s, tFine)
+
+			# Old Plots
+
+			# plt.figure(12)
+			# plt.clf()
+			# plt.errorbar(tGen, yDum, dy1, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
+			# plt.plot(tGen, oneSine4fit(tGen, *popt1), color='r', ls='--')
+			# plt.plot(tGen, oneSine4fit(tGen, *p0), color='g', ls=':')
+			# #plt.plot(jd, (1.09084866e-01*np.sin((2.0*np.pi*jd/7.65892886e+00)+8.90158004e+03)+1.69284759e+01), c='orange')
+
+			# yLims = np.copy(plt.gca().get_ylim())
+
+			# if useMags:
+			# 	plt.ylim([yLims[1], yLims[0]])
+
+			# New Plots
+
+			if iSet == iPlot:
+				fig12 = plt.figure(12)
+				fig12.clf()
+				plt.scatter(tGen, yDum, color='b', s=10, zorder=10)
+				plt.errorbar(tGen, yDum, yerr=dy1, ls='none', color='b', alpha=0.3, zorder=11)
+
+				plt.title('phi guess: %.2f' % (p0OS[1]) )
+				plt.xlabel('time(jd - 2 400 000)')
+				plt.ylabel('mag')
+
+			plt.plot(tGen, oneSine2019(tGen, *paramsOS), label='fit: a=%5.3f, phi=%5.3f' % tuple(paramsOS), zorder=1)
+		plt.legend()
+		plt.show()
 
 
-		# fine-grained version for plotting
-		#tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=1000)
-		#yFine = oneSine(p1s, tFine)
+		# Plot only the trials that didn't fail
+		phiOKOS = np.abs(parsFound[:,0]) > 1e-3
 
-		plt.figure(12)
-		plt.clf()
-		plt.errorbar(tGen, yDum, dy1, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
-		plt.plot(tGen, oneSine4fit(tGen, *popt1), color='r', ls='--')
-		plt.plot(tGen, oneSine4fit(tGen, *p0), color='g', ls=':')
-		#plt.plot(jd, (1.09084866e-01*np.sin((2.0*np.pi*jd/7.65892886e+00)+8.90158004e+03)+1.69284759e+01), c='orange')
+		# Plot to show how brst-fit parameters depend on choice of initial-guess phi
 
-		yLims = np.copy(plt.gca().get_ylim())
+		fig13 = plt.figure(13)
+		fig13.clf()
+		ax13a = fig13.add_subplot(211)
+		dum13a = ax13a.scatter(phiGuess[phiOKOS], parsFound[phiOKOS,0], color='r', marker='v', zorder=2, edgecolor='0.5')
+		ax13b = fig13.add_subplot(212)
+		dum13b = ax13b.scatter(phiGuess[phiOKOS], parsFound[phiOKOS,1], color='r', marker='v', zorder=2, edgecolor='0.5')
 
-		if useMags:
-			plt.ylim([yLims[1], yLims[0]])
+		ax13a.set_ylabel('Final a')
+		ax13b.set_ylabel('Final phi')
+
+		ax13a.set_ylim(parsTrue[0]-0.2, parsTrue[0]+0.2)
+		ax13b.set_ylim(parsTrue[1]-4, parsTrue[1]+12)
+
+		# Overplotting the true value
+
+		ax13a.plot(phiGuess, np.repeat(p0[0], np.size(phiGuess)), color='g', lw='1', zorder=1)
+		ax13b.plot(phiGuess, np.repeat(p0[1], np.size(phiGuess)), color='g', lw='1', zorder=1)
+
+		for ax in [ax13a, ax13b]:
+			ax.set_xlabel('Initial guess phi')
 
 		#print "p0: ", p0
 		#print "p1s: ", p1s
@@ -824,7 +899,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
 		# yFine2 = twoSine(p2s, tFine2)
 
-		plt.figure(13)
+		plt.figure(14)
 		plt.clf()
 		plt.errorbar(tGen2, yDum2, dy2, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
 		plt.plot(tGen2, twoSine4fit(tGen2, *popt2), color='r', ls='--')
@@ -870,6 +945,11 @@ def twoSine4fit(x, p0, p1, p2, p3, p4):
 	sineTwo = p4 * np.sin(4.0*np.pi*x/p2 + p1)
 
 	return sineOne + sineTwo
+
+def oneSine2019(x, a, phi):
+	"""Basic single sine ellipsoidal to be fitted."""
+
+	return a * np.sin(2.0*np.pi*x/6.4714 + phi) + 16.6
 
 def twiceSine(p,x, debug=False):
 

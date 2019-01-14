@@ -747,7 +747,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		# 2019-01-11 Testing initial guess for multiple trials; constraining PHI
 
-		aGuess = 1.
+		aGuess = 43543058.
 		nSets = 16
 		phiGuess = np.linspace(-8.0, 8.0, num=nSets)
 		oGuess = 16.
@@ -760,7 +760,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		for iSet in range(nSets):
 			p0OS = [aGuess, phiGuess[iSet], oGuess]
 
-			boundsOS = ([-np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf])
+			boundsOS = ([0, -np.inf, -np.inf], [np.inf, np.inf, np.inf])
 
 			try:
 				paramsOS, pcovOS = optimize.curve_fit(oneSine2019, tGen, yDum, p0=p0OS, method='trf',\
@@ -774,8 +774,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 				continue
 
 			# fine-grained version for plotting
-			#tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=1000)
-			#yFine = oneSine(p1s, tFine)
+			tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=np.size(tGen))
+			yFine = oneSine2019(tFine, *paramsOS)
 
 			# Old Plots
 
@@ -804,6 +804,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 				plt.ylabel('mag')
 
 			plt.plot(tGen, oneSine2019(tGen, *paramsOS), label='fit: a=%5.3f, phi=%5.3f, offset=%5.3f' % tuple(paramsOS), zorder=1)
+		plt.plot(tFine, yFine, label='attempt to plot fine-grained curve', color='k', zorder=1)
 		plt.legend()
 		plt.show()
 
@@ -905,10 +906,6 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# # predicted at the measurement dates
 		# yPred2 = twoSine(p2s, jd)
 
-		# # fine-grained version for plotting
-		# tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
-		# yFine2 = twoSine(p2s, tFine2)
-
 
 		# 2019-01-14 Testing initial twoSine guess for multiple trials; constraining phi
 
@@ -957,6 +954,19 @@ def go(pctile=10., iCheck=1, useMags=True, \
 				iPlot2 += 1
 				continue
 
+			if parsFound2[iSet2][3] < 0:
+				parsFound2[iSet2][3] *= -1
+				parsFound2[iSet2][0] *= -1
+				parsFound2[iSet2][1] -= np.pi
+			if parsFound2[iSet2][1] > np.pi:
+				parsFound2[iSet2][1] -= 2 * np.pi
+			if parsFound2[iSet2][1] < -np.pi:
+				parsFound2[iSet2][1] += 2 * np.pi
+
+			# fine-grained version for plotting
+			tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
+			yFine2 = twoSine2019(tFine2, *paramsTS)
+
 			# old plots
 
 			# plt.figure(14)
@@ -986,8 +996,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 				plt.xlabel('time(jd - 2 400 000)')
 				plt.ylabel ('mag')
 
-
-			plt.plot(tGen2, twoSine2019(tGen2, *paramsTS), label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
+			plt.plot(tFine2, yFine2, label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
 		plt.legend()
 		plt.show()
 

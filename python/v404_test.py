@@ -857,7 +857,11 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			tGen2 = np.hstack(( jd, jd+tRange2+1.0))
 			dy2 = np.hstack(( dy, dy ))
 
-		xDum2 = twoSine(p0, tGen2)
+		parsTrue2 = [0.2, -2.0, 16.6, 0.1]
+
+		xDum2 = twoSine2019(tGen2, *parsTrue2)
+
+		print "True values: ", parsTrue2
 		#xDum = (tDum + mag)
 		yDum2 = xDum2 + np.random.normal(size=np.size(xDum2))*dy2
 		#np.savetxt('yDum2.txt', yDum2)
@@ -867,16 +871,16 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		#boundsTwo = ([0.,0.,6.46, 16.0, 0.], \
 		#	[2., 2.*np.pi, 6.48, 17.0, 2.0])
 
-		boundsTwo = ([0, -2.0*np.pi, 6.4713, -np.inf, -np.inf], [0.5, 2.0*np.pi, 6.4715, np.inf, np.inf])
+		#boundsTwo = ([0, -2.0*np.pi, 6.4713, -np.inf, -np.inf], [0.5, 2.0*np.pi, 6.4715, np.inf, np.inf])
 #			0.,0.,6.46, 16.0, 0.], \
 #			[2., 2.*np.pi, 6.48, 17.0, 2.0])
 
 
-		print("DOUBLE-CHECKING THE GUESS:", pGuess)
+		#print("DOUBLE-CHECKING THE GUESS:", pGuess)
 			# NOTE - inserting the actual parameters seems to not reproduce the actual data...
 
-		popt2, pcov2 = optimize.curve_fit(twoSine4fit, xDum2, yDum2, bounds=boundsTwo, p0=p0, method='trf')# Guess[:])
-		print "popt2: ", popt2
+		#popt2, pcov2 = optimize.curve_fit(twoSine4fit, xDum2, yDum2, bounds=boundsTwo, p0=p0, method='trf')# Guess[:])
+		#print "popt2: ", popt2
 		#print "shape(popt): ", np.shape(popt)
 		#print "pcov: ", pcov
 		#print "shape(pcov): ", np.shape(pcov)
@@ -905,22 +909,124 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
 		# yFine2 = twoSine(p2s, tFine2)
 
-		plt.figure(14)
-		plt.clf()
-		plt.errorbar(tGen2, yDum2, dy2, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
-		plt.plot(tGen2, twoSine4fit(tGen2, *popt2), color='r', ls='--')
-		plt.plot(tGen2, twoSine4fit(tGen2, *p0), color='g', ls=':')
 
-		yLims = np.copy(plt.gca().get_ylim())
+		# 2019-01-14 Testing initial twoSine guess for multiple trials; constraining phi
 
-		if useMags:
-			plt.ylim([yLims[1], yLims[0]])
+		a1Guess = 54.
+		nSets2 = 8
+		phiGuess2 = np.linspace(-4.0, 4.0, num=nSets2)
+		#phiGuess2 = -3.
+		oGuess2 = 16.
+		a2Guess = -345.54
+		parsFound2 = np.zeros((nSets2, np.size(parsTrue2)))
 
-		#print "p0: ", p0
-		#print "p2s: ", p2s
-		#print "success2s: ", success2s
-		#print "xDum2: ", xDum2
-		#print "size(xDum2) ", np.size(xDum2)
+		iPlot2 = 0 #0 plots everything; 3 doesn't plot the first 3 plots [0, 1, and 2], etc.
+
+
+		# DEBUG
+
+		# p0TS = [a1Guess, phiGuess2, oGuess2, a2Guess]
+		# boundsTS = ([-np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf])
+		# paramsTS, pcovTS = optimize.curve_fit(twoSine2019, tGen2, yDum2, p0=p0TS, method='trf',\
+		# 	bounds=boundsTS, sigma=dy2, absolute_sigma=False)
+
+		# fig14 = plt.figure(14)
+		# fig14.clf()
+		# plt.scatter(tGen2, yDum2, color='b', s=10, zorder=10)
+		# plt.errorbar(tGen2, yDum2, yerr=dy2, ls='none', color='b', alpha=0.3, zorder=11)
+
+		# plt.title('phi guess: %.2f' % (p0TS[1]) )
+		# plt.xlabel('time(jd - 2 400 000)')
+		# plt.ylabel ('mag')
+
+		# Generate fit using input guesses
+
+		for iSet2 in range(nSets2):
+			p0TS = [a1Guess, phiGuess2[iSet2], oGuess2, a2Guess]
+
+			boundsTS = ([-np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf])
+
+			try:
+				paramsTS, pcovTS = optimize.curve_fit(twoSine2019, tGen2, yDum2, p0=p0TS, method='trf',\
+					bounds=boundsTS, sigma=dy2, absolute_sigma=True)
+
+				# slot the best-fit parameters into the results array
+				parsFound2[iSet2] = np.copy(paramsTS)
+			except:
+				print("WARN- failed fit for trial %i, %.2f" %(iSet2, p0TS[1]))
+				iPlot2 += 1
+				continue
+
+			# old plots
+
+			# plt.figure(14)
+			# plt.clf()
+			# plt.errorbar(tGen2, yDum2, dy2, ls='none', marker='o', color='b', zorder=10, alpha=0.5)
+			# plt.plot(tGen2, twoSine4fit(tGen2, *popt2), color='r', ls='--')
+			# plt.plot(tGen2, twoSine4fit(tGen2, *p0), color='g', ls=':')
+
+			# yLims = np.copy(plt.gca().get_ylim())
+
+			# if useMags:
+			# 	plt.ylim([yLims[1], yLims[0]])
+
+			#print "p0: ", p0
+			#print "p2s: ", p2s
+			#print "success2s: ", success2s
+			#print "xDum2: ", xDum2
+			#print "size(xDum2) ", np.size(xDum2)
+
+			if iSet2 == iPlot2:
+				fig14 = plt.figure(14)
+				fig14.clf()
+				plt.scatter(tGen2, yDum2, color='b', s=10, zorder=10)
+				plt.errorbar(tGen2, yDum2, yerr=dy2, ls='none', color='b', alpha=0.3, zorder=11)
+
+				plt.title('phi guess: %.2f' % (p0TS[1]) )
+				plt.xlabel('time(jd - 2 400 000)')
+				plt.ylabel ('mag')
+
+
+			plt.plot(tGen2, twoSine2019(tGen2, *paramsTS), label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
+		plt.legend()
+		plt.show()
+
+		# Plot only the trials that didn't fail
+		phiOKTS = np.abs(parsFound2[:,0]) > 1e-3
+
+		#Plot to show how best-fit parameters depend on choice of initial guess phi
+
+		fig15 = plt.figure(15)
+		fig15.clf()
+		ax15a = fig15.add_subplot(221)
+		dum15a = ax15a.scatter(phiGuess2[phiOKTS], parsFound2[phiOKTS,0], color='r', marker='v', zorder=2, edgecolor='0.5')
+		ax15b = fig15.add_subplot(222)
+		dum15b = ax15b.scatter(phiGuess2[phiOKTS], parsFound2[phiOKTS,1], color='r', marker='v', zorder=2, edgecolor='0.5')
+		ax15c = fig15.add_subplot(223)
+		dum15c = ax15c.scatter(phiGuess2[phiOKTS], parsFound2[phiOKTS,2], color='r', marker='v', zorder=1, edgecolor='0.5')
+		ax15d = fig15.add_subplot(224)
+		dum15d = ax15d.scatter(phiGuess2[phiOKTS], parsFound2[phiOKTS,3], color='r', marker='v', zorder=1, edgecolor='0.5')
+
+
+		ax15a.set_ylabel('Final a1')
+		ax15b.set_ylabel('Final phi')
+		ax15c.set_ylabel('Final offeset')
+		ax15d.set_ylabel('Final a2')
+
+		ax15a.set_ylim(parsTrue2[0]-0.2, parsTrue2[0]+0.2)
+		ax15b.set_ylim(parsTrue2[1]-2, parsTrue2[1]+6)
+		ax15c.set_ylim(parsTrue2[2]-0.2, parsTrue2[2]+0.2)
+		ax15d.set_ylim(parsTrue2[3]-0.2, parsTrue2[3]+0.2)
+
+		# Overplotting the true value
+
+		ax15a.plot(phiGuess2, np.repeat(parsTrue2[0], np.size(phiGuess2)), color='g', lw='1', zorder=1)
+		ax15b.plot(phiGuess2, np.repeat(parsTrue2[1], np.size(phiGuess2)), color='g', lw='1', zorder=1)
+		ax15c.plot(phiGuess2, np.repeat(parsTrue2[2], np.size(phiGuess2)), color='g', lw='1', zorder=1)
+		ax15d.plot(phiGuess2, np.repeat(parsTrue2[3], np.size(phiGuess2)), color='g', lw='1', zorder=1)
+
+		for ax2 in [ax15a, ax15b, ax15c, ax15d]:
+			ax2.set_xlabel('initial guess phi')
 
 		
 
@@ -956,6 +1062,14 @@ def oneSine2019(x, a, phi, offset):
 	"""Basic single sine ellipsoidal to be fitted."""
 
 	return a * np.sin(2.0*np.pi*x/6.4714 + phi) + offset
+
+def twoSine2019(x, a1, phi, offset, a2):
+	"""Double-amplitude ellipsoidal fit"""
+
+	sineOne = a1 * np.sin(2.0*np.pi*x/6.4714 + phi) + offset
+	sineTwo = a2 * np.sin(4.0*np.pi*x/6.4714 + phi)
+
+	return sineOne + sineTwo
 
 def twiceSine(p,x, debug=False):
 

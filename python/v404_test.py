@@ -785,6 +785,21 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			# fine-grained version for plotting
 			tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=np.size(tGen))
 			yFine = oneSine2019(tFine, *paramsOS)
+			pFine1, _ = phaseFromJD(tFine)
+			ll2 = np.argsort(pFine1)
+
+			# plot by JD or phase?
+
+			tSho1 = np.copy(tGen)
+			tGrid = np.copy(xGrid)
+			phase1, u_phs1 = phaseFromJD(tGen)
+			#print np.size(phase2)
+			#print np.size(tGen2)
+			if showPhase:
+				tSho1 = np.copy(phase1)
+				tGrid = np.copy(phaseGrid)
+			lG1 = np.argsort(tGrid)
+				#print lG
 
 			# Old Plots
 
@@ -805,15 +820,18 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			if iSet == iPlot:
 				fig12 = plt.figure(12)
 				fig12.clf()
-				plt.scatter(tGen, yDum, color='b', s=10, zorder=10)
-				plt.errorbar(tGen, yDum, yerr=dy1, ls='none', color='b', alpha=0.3, zorder=11)
+				plt.scatter(tSho1, yDum, color='b', s=10, zorder=10)
+				plt.errorbar(tSho1, yDum, yerr=dy1, ls='none', color='b', alpha=0.3, zorder=11)
 
 				plt.title('phi guess: %.2f' % (p0OS[1]) )
-				plt.xlabel('time(jd - 2 400 000)')
+				if not showPhase:
+					plt.xlabel('time(jd - 2 400 000)')
+				else:
+					plt.xlabel('phase')
 				plt.ylabel('mag')
 
-			plt.plot(tGen, oneSine2019(tGen, *paramsOS), label='fit: a=%5.3f, phi=%5.3f, offset=%5.3f' % tuple(paramsOS), zorder=1)
-		plt.plot(tFine, yFine, label='attempt to plot fine-grained curve', color='k', zorder=1)
+			plt.plot(tGrid[lG1], oneSine2019(xGrid[lG1], *paramsOS))#, label='fit: a=%5.3f, phi=%5.3f, offset=%5.3f' % tuple(paramsOS), zorder=1)
+		#plt.plot(tFine, yFine, label='attempt to plot fine-grained curve', color='k', zorder=1)
 		plt.legend()
 		plt.show()
 
@@ -974,7 +992,24 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 			# fine-grained version for plotting
 			tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
+			pFine2, _ = phaseFromJD(tFine2)
+
 			yFine2 = twoSine2019(tFine2, *paramsTS)
+			ll2 = np.argsort(pFine2)
+
+			# plot by JD or phase?
+
+			tSho2 = np.copy(tGen2)
+			tGrid = np.copy(xGrid)
+			phase2, u_phs2 = phaseFromJD(tGen2)
+			#print np.size(phase2)
+			#print np.size(tGen2)
+			if showPhase:
+				tSho2 = np.copy(phase2)
+				tGrid = np.copy(phaseGrid)
+			lG2 = np.argsort(tGrid)
+				#print lG
+				#print tGrid
 
 			# old plots
 
@@ -996,16 +1031,21 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			#print "size(xDum2) ", np.size(xDum2)
 
 			if iSet2 == iPlot2:
+				#print "x: ", np.size(tSho2)
+				#print "y: ", np.size(yDum2)
 				fig14 = plt.figure(14)
 				fig14.clf()
-				plt.scatter(tGen2, yDum2, color='b', s=10, zorder=10)
-				plt.errorbar(tGen2, yDum2, yerr=dy2, ls='none', color='b', alpha=0.3, zorder=11)
+				plt.scatter(tSho2, yDum2, color='b', s=10, zorder=10)
+				plt.errorbar(tSho2, yDum2, yerr=dy2, ls='none', color='b', alpha=0.3, zorder=11)
 
 				plt.title('phi guess: %.2f' % (p0TS[1]) )
-				plt.xlabel('time(jd - 2 400 000)')
+				if not showPhase:
+					plt.xlabel('time(jd - 2 400 000)')
+				else:
+					plt.xlabel('phase')
 				plt.ylabel ('mag')
 
-			plt.plot(tFine2, yFine2, label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
+			plt.plot(tGrid[lG2], twoSine2019(xGrid[lG2], *paramsTS))#, label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
 		plt.legend()
 		plt.show()
 

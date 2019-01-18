@@ -564,7 +564,16 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		#num_points = 1401
 		#randfunc = 0.0393104 * np.sin(2.0*np.pi*jd/6.47155519  + -1.68599974)+16.5961013 + 0.15487321 * np.sin(4.0*np.pi*jd/6.47155519 + -1.68599974)*np.random.rand(num_points)
 
-		xGrid = np.linspace(57985., 57991., 1000)
+		if data == '2017':
+			xGrid = np.linspace(57985., 57991., 1000)
+		elif data =='2018A':
+			xGrid = np.linspace(58269., 58275., 1000)
+		elif data == '2018B':
+			xGrid = np.linspace(58337., 58346., 1000)
+		elif data == '1992':
+			xGrid = np.linspace(8801., 8817., 1000)
+		elif data == '1998':
+			xGrid = np.linspace(51004., 51015., 1000)
 		#randfunc = twoSine(pLow,xGrid)
 
 		# Plotting the v404 data and the best fit line

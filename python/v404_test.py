@@ -1120,9 +1120,18 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		for ax2 in [ax15a, ax15b, ax15c, ax15d]:
 			ax2.set_xlabel('initial guess phi')
 
+		# Subtract the ellipsoidal and plot the subtracted data
 
+		if plotSubtractedData:
+			fSub2 = yDum2 - twoSine2019(tGen2, *paramsTS)
 
-		
+			fig16 = plt.figure(16)
+			fig16.clf()
+			ax16 = fig16.add_subplot(111)
+			ax16.scatter(tGen2, fSub2)
+			if errorbars:
+				ax16.errorbar(tGen2, fSub2, yerr=dy2, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
+			ax16.set_xlabel('Time (jd - 2 400 000)')	
 
 def oneSine(p,x):
 

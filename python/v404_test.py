@@ -89,16 +89,17 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotSubtractedData=False, plotEllipsoidal=False, limit=0.1, \
 	       plotBinnedOnSubtracted=False, writeEllipsoidal=False, \
 	       overlayEllipsoidal=False, compareEllipsoidals=False, \
-	       genOS=False, moreTimes=False, genTS=False):
+	       genOS=False, moreTimes=False, genTS=False, amp1=-0.04, amp2=0.108):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
 	warn = "WARNING: Ellipsoidal modulation will not work for 1999 and 2003!"
-	warn2 = "WARNING: Binned and subtracted data only plots if showBinned, plotEllipsoidal, and plotSubtractedData are all set to True."
+	warn2 = "WARNING: Binned and subtracted data only plots if plotEllipsoidal is set to True."
 	#warn3 = "2017 and 2018A data will not work for this version of v404_test on Christian's account."
 
-	if plotBinnedData or plotBinnedLS or plotBinnedNoiseData or plotBinnedNoiseLS or plotSubtractedData:
-		print warn2
+	if not plotEllipsoidal:
+		if showBinned or plotSubtractedData:
+			print warn2
 
 
 	if plotBinnedLS or plotBinnedNoiseLS or plotLS:
@@ -108,7 +109,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		tbl = t92
 	elif data == '1998':
 		tbl = t98
-		print "WARNING: Due to 1998 data already being in phase, binning and subtraction currently does not work."
+		print "WARNING: Due to 1998 data already being in phase, binning currently does not work."
 	elif data == '1999A':
 		tbl = t99A
 		print warn
@@ -344,6 +345,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
  	if plotEllipsoidal:
 	 	p0 = np.array([a1, phi, orbital_period, diff, a2])
+	 	#print "Guess[a1, phi, o_p, diff, a2]: ", p0
 	 	if overlayEllipsoidal:
 	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt", unpack=True)
 	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt", unpack=True)
@@ -360,6 +362,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			np.savetxt('pLow'+str(data)+'.txt', pLow)
 			print "Saved p1: ", p1
 			print "Saved pLow: ", pLow
+
+		
+		print "Fit[a1, phi, o_p, diff, a2]: ", p1
+		#print "Lower Envelope: ", pLow
 
 	 	# by this point we have the ellipsoidal modulation fit to the
 	 	# dataset
@@ -390,13 +396,12 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	 	print "binned arrays shape, nMin, nMax:", \
 		    np.shape(tBin), np.min(nBin), np.max(nBin)
 
- 	# if you want to subtract the ellipsoidal modulation from the
- 	# binned data, you might do:
+ 	# if you want to subtract the ellipsoidal modulation from the data, you might do:
  	if plotSubtractedData:
-	 	fBinSub = fBin - twoSine(pLow, tBin)
-
-	 	# or just the raw data...
-	 	fSub = mag - twoSine(pLow, jd)
+	 	if showBinned:
+	 		fBinSub = fBin - twoSine(p1, tBin) # 2019-02-01: Using median lightcurve (p1) until lower envelope is fixed
+	 	else:
+	 		fSub = mag - twoSine(p1, jd) # 2019-02-01: Using median lightcurve (p1) until lower envelope is fixed
 
 	 	# let's plot this...
 
@@ -404,26 +409,34 @@ def go(pctile=10., iCheck=1, useMags=True, \
  		fig11 = plt.figure(11)
  		fig11.clf()
  		ax11 = fig11.add_subplot(111)
- 		ax11.scatter(jd, fSub)
+ 		if showBinned:
+ 			ax11.scatter(tBin, fBinSub)
+ 			if errorbars:
+ 				ax11.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
+ 		else:
+ 			ax11.scatter(jd, fSub)
+ 			if errorbars:
+ 				ax11.errorbar(jd, fSub, yerr=dy, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
  		if plotBinnedOnSubtracted:
  			ax11.plot(tBin, fBinSub, 'bo')
  			ax11.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
 
 		# 2018-04-07 WIC - write the binned subtracted lightcurve to
 		# file to plot with other methods.
-		tExp = Table()
-		tExp['tBin'] = tBin
-		tExp['fBin'] = fBin
-		tExp['uBin'] = uBin
-		tExp['nBin'] = nBin
-		tExp['fBinSub'] = fBinSub
-		tExp['phsBin'], _  = phaseFromJD(tBin)
+		if writeOnly:
+			tExp = Table()
+			tExp['tBin'] = tBin
+			tExp['fBin'] = fBin
+			tExp['uBin'] = uBin
+			tExp['nBin'] = nBin
+			tExp['fBinSub'] = fBinSub
+			tExp['phsBin'], _  = phaseFromJD(tBin)
 
-		# export this to disk
-		filExp='v404_binSub.fits'
-		if os.access(filExp, os.R_OK):
-			os.remove(filExp)
-		tExp.write(filExp)
+			# export this to disk
+			filExp='v404_binSub.fits'
+			if os.access(filExp, os.R_OK):
+				os.remove(filExp)
+			tExp.write(filExp)
 
  	orbital_period = 6.4714
  	period = np.linspace(0.0005, orbital_period, 1000)
@@ -588,7 +601,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		# create a few phase bins
 		phaseLow, _  = phaseFromJD(tLow)
-		phaseGrid, _  = phaseFromJD(xGrid)
+		phaseGrid, _  = phaseFromJD(xGrid, per=p1[2]) # 2019-02-01 CHECK
+		#print("ONe last debug:", p1)
 
 		# Because the phasing is not the same order as the jd, we need
 		# to sort the line-drawn objects so that we don't get
@@ -662,6 +676,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# And actually label the axes
 		if showPhase:
 			plt.xlabel('Phase (6.4714 d period)')
+			plt.xlabel('Phase (%.6f d period)' % (p1[2]))			
 		else:
 			plt.xlabel('JD - 2 400 000.0 d')
 		
@@ -878,14 +893,17 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		# set up time array to use for generations
 		tGen2 = np.copy(jd)
+
+		#2019-02-01 let's subtract off the smallest jd value to remove extreme sensitivity to the period
+		# tGen2 -= np.min(tGen2)
 		dy2 = np.copy(dy)
 
 		if moreTimes:
 			tRange2 = np.max(jd) - np.min(jd)
-			tGen2 = np.hstack(( jd, jd+tRange2+1.0))
+			tGen2 = np.hstack(( tGen2, tGen2+tRange2+1.0))
 			dy2 = np.hstack(( dy, dy ))
 
-		parsTrue2 = [0.2, -2.0, 16.6, 0.1]
+		parsTrue2 = [amp1, -2., 16.73, amp2]
 
 		xDum2 = twoSine2019(tGen2, *parsTrue2)
 
@@ -1045,9 +1063,25 @@ def go(pctile=10., iCheck=1, useMags=True, \
 					plt.xlabel('phase')
 				plt.ylabel ('mag')
 
+			# 2019-02-01 WIC - fudge to force the same parameters
+
 			plt.plot(tGrid[lG2], twoSine2019(xGrid[lG2], *paramsTS))#, label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
+
+		# 2019-01-02 - make a copy of p1 so that we can put it through twosine:
+		p1For2019 = np.array([p1[0], p1[1], p1[3], p1[4]])
+		plt.plot(tGrid[lG2], twoSine2019(xGrid[lG2], *p1For2019), 'g-.')
+		plt.plot(tGrid[lG2], twoSine(p1, xGrid[lG2]), 'g--', lw=2)
+
+
 		plt.legend()
+		plt.ylim(16.95, 16.45)
 		plt.show()
+
+		print("DEBUG: 'TRUE:' twoSine2019:", parsTrue2)
+		print("DEBUG: 'FITTED:' twoSine2019:", paramsTS)
+		print("DEBUG: 'twoSine' green dashed:", p1)
+		print("DEBUG - time range: %.2f, %.2f" %( np.min(tGen2), np.max(tGen2)))
+
 
 		# Plot only the trials that didn't fail
 		phiOKTS = np.abs(parsFound2[:,0]) > 1e-3
@@ -1068,7 +1102,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		ax15a.set_ylabel('Final a1')
 		ax15b.set_ylabel('Final phi')
-		ax15c.set_ylabel('Final offeset')
+		ax15c.set_ylabel('Final offset')
 		ax15d.set_ylabel('Final a2')
 
 		ax15a.set_ylim(parsTrue2[0]-0.2, parsTrue2[0]+0.2)
@@ -1085,6 +1119,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		for ax2 in [ax15a, ax15b, ax15c, ax15d]:
 			ax2.set_xlabel('initial guess phi')
+
+
 
 		
 
@@ -1124,8 +1160,17 @@ def oneSine2019(x, a, phi, offset):
 def twoSine2019(x, a1, phi, offset, a2):
 	"""Double-amplitude ellipsoidal fit"""
 
-	sineOne = a1 * np.sin(2.0*np.pi*x/6.4714 + phi) + offset
-	sineTwo = a2 * np.sin(4.0*np.pi*x/6.4714 + phi)
+	# 2019-02-01 - replaced 6.4714 with 6.471528
+
+	# 2019-02-01 - calculate the phase in the exact same way as the data
+	phase, _ = np.array(phaseFromJD(x))
+
+	#sineOne = a1 * np.sin(2.0*np.pi*x/6.471528 + phi) + offset
+	#sineTwo = a2 * np.sin(4.0*np.pi*x/6.471528 + phi)
+
+	sineOne = a1 * np.sin(2.0*np.pi*phase + phi) + offset
+	sineTwo = a2 * np.sin(4.0*np.pi*phase + phi)
+
 
 	return sineOne + sineTwo
 
@@ -1482,7 +1527,9 @@ def correctMagForContaminant(magObs=20., magContam=17.2):
 	# so, what's the relative flux of the object itself?
 	return -2.5*np.log10(fObs - fCon)
 
-def phaseFromJD(jdShort=np.array([]), per=6.4714, tZer=48813.873, \
+def phaseFromJD(jdShort=np.array([]), per=6.4714, \
+		#tZer=48813.873, \
+		tZer=57964.4326, \
 			u_per = 0.0001, u_tZer=0.004):
 
 	"""Compute the phase from given times. Note that the times are

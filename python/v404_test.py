@@ -8,7 +8,7 @@ import numpy as np
 from scipy import optimize
 import sys
 from astropy.stats import sigma_clip
-import loadOld #v404_test must be located in the same directory as loadOld for this to work
+import loadOld
 from astroML.time_series import lomb_scargle, lomb_scargle_bootstrap
 
 # for testing existence of files
@@ -67,6 +67,9 @@ except UnboundLocalError:
 #mag = t1212['Flux_V404']
 #flag = t1212['Flag']
 
+# 2019-02-11 HARDCODE
+#tZer = 57964.4326
+
 def go(pctile=10., iCheck=1, useMags=True, \
 	       clipOutliers=False, \
 	       #oldAperture=False, plotRawCounts=False, \
@@ -89,7 +92,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotSubtractedData=False, plotEllipsoidal=False, limit=0.1, \
 	       plotBinnedOnSubtracted=False, writeEllipsoidal=False, \
 	       overlayEllipsoidal=False, compareEllipsoidals=False, \
-	       genOS=False, moreTimes=False, genTS=False, amp1=-0.04, amp2=0.108):
+	       genOS=False, moreTimes=False, genTS=False, amp1=-0.04, amp2=0.108, \
+	       plot2Phases=False):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
@@ -100,6 +104,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	if not plotEllipsoidal:
 		if showBinned or plotSubtractedData:
 			print warn2
+		if compareEllipsoidals:
+				print "plotEllipsoidal must be set to True in order to compare ellipsoidals."
 
 
 	if plotBinnedLS or plotBinnedNoiseLS or plotLS:
@@ -107,26 +113,37 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	if data == '1992':
 		tbl = t92
+		t0 = projectEphemeris()
 	elif data == '1998':
 		tbl = t98
+		t0 = projectEphemeris()
 		print "WARNING: Due to 1998 data already being in phase, binning currently does not work."
 	elif data == '1999A':
 		tbl = t99A
+		t0 = projectEphemeris()
 		print warn
 	elif data == '1999B':
 		tbl = t99B
+		t0 = projectEphemeris()
 		print warn
 	elif data == '2003':
 		tbl = t03
+		t0 = projectEphemeris()
 		print warn
 	elif data == '2017':
 		tbl = t17
+		oldT0 = np.min(tbl['time'])
+		t0 = projectEphemeris(minJD=oldT0)
 		#print warn3
 	elif data == '2018A':
 		tbl = t18A
+		oldT0 = np.min(tbl['time'])
+		t0 = projectEphemeris(minJD=oldT0)
 		#print warn3
 	elif data == '2018B':
 		tbl = t18B
+		oldT0 = np.min(tbl['time'])
+		t0 = projectEphemeris(minJD=oldT0)
 	else:
 		print "The value for 'data' must be either 1992, 1998, 1999A, 1999B, 2003, 2017, 2018A or 2018B."
 		return
@@ -222,7 +239,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	if 'time' in tbl.colnames:
 		jd = tbl['time']
 		# compute the phase on the orbital ephemeris.
-		phase, u_phase = phaseFromJD(jd)
+		phase, u_phase = phaseFromJD(jd, tZer=t0)
 	else:
 		phase = tbl['phase']
 		jd = tbl['phase'] #so the rest of the script doesn't return an error.........
@@ -375,7 +392,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# uniform characterization by v404ellipsoidal.py
 		tModel = Table()
 		tFine = np.linspace(np.min(jd), np.max(jd)+8., 400)
-		pFine, _ = phaseFromJD(tFine)
+		pFine, _ = phaseFromJD(tFine, tZer=t0)
 		yFine = twoSine(pLow, tFine)
 		ll = np.argsort(pFine)
 
@@ -430,7 +447,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			tExp['uBin'] = uBin
 			tExp['nBin'] = nBin
 			tExp['fBinSub'] = fBinSub
-			tExp['phsBin'], _  = phaseFromJD(tBin)
+			tExp['phsBin'], _  = phaseFromJD(tBin, tZer=t0)
 
 			# export this to disk
 			filExp='v404_binSub.fits'
@@ -600,8 +617,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# the phase curve.
 
 		# create a few phase bins
-		phaseLow, _  = phaseFromJD(tLow)
-		phaseGrid, _  = phaseFromJD(xGrid, per=p1[2]) # 2019-02-01 CHECK
+		phaseLow, _  = phaseFromJD(tLow, tZer=t0)
+		phaseGrid, _  = phaseFromJD(xGrid, tZer=t0)
+		#per=p1[2]) # 2019-02-01 CHECK
 		#print("ONe last debug:", p1)
 
 		# Because the phasing is not the same order as the jd, we need
@@ -622,19 +640,39 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 
 		if compareEllipsoidals:
-	 		p1_17 = np.loadtxt("/Users/amblevin/Desktop/p12017.txt")
-	 		pLow_17 = np.loadtxt("/Users/amblevin/Desktop/pLow2017.txt")
-	 		p1_18 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt")
-	 		pLow_18 = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt")
+			if not plotEllipsoidal:
+				print "plotEllipsoidal must be set to True in order to compare ellipsoidals."
+				return
+			else:
+		 		p1_17 = np.loadtxt("/Users/amblevin/Desktop/p12017.txt")
+		 		pLow_17 = np.loadtxt("/Users/amblevin/Desktop/pLow2017.txt")
+		 		p1_18 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt")
+		 		pLow_18 = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt")
 
-	 		fig10 = plt.figure(10)
-	 		fig10.clf()
-	 		ax10 = fig10.add_subplot(111)
-	 		ax10.plot(tGrid[lG], twoSine(p1_17, xGrid[lG]), c='blue', label='2017 Ellipsoidal')
-	 		ax10.plot(tGrid[lG], twoSine(pLow_17, xGrid[lG]), c='blue', ls='--', label='2017 Lower')
-	 		ax10.plot(tGrid[lG], twoSine(p1_18, xGrid[lG]), c='orange', label='2018 Ellipsoidal')
-	 		ax10.plot(tGrid[lG], twoSine(pLow_18, xGrid[lG]), c='orange', ls='--', label='2018 Lower')
-	 		plt.legend()
+		 		Y17e = twoSine(p1_17, xGrid[lG])
+		 		Y17Le = twoSine(pLow_17, xGrid[lG])
+		 		Y18e = twoSine(p1_18, xGrid[lG])
+		 		Y18Le = twoSine(pLow_18, xGrid[lG])
+		 		Y17 = Y17e
+		 		Y17L = Y17Le
+		 		Y18 = Y18e
+		 		Y18L = Y18Le
+		 		XC = tGrid[lG]
+
+		 		if plot2Phases:
+		 			XC, Y17 = plotAnotherPhase(phase=tGrid[lG], y=Y17e)
+		 			XC, Y17L = plotAnotherPhase(phase=tGrid[lG], y=Y17Le)
+		 			XC, Y18 = plotAnotherPhase(phase=tGrid[lG], y=Y18e)
+		 			XC, Y18L = plotAnotherPhase(phase=tGrid[lG], y=Y18Le)
+
+		 		fig10 = plt.figure(10)
+		 		fig10.clf()
+		 		ax10 = fig10.add_subplot(111)
+		 		ax10.plot(XC, Y17, c='blue', label='2017 Ellipsoidal')
+		 		ax10.plot(XC, Y17L, c='blue', ls='--', label='2017 Lower')
+		 		ax10.plot(XC, Y18, c='orange', label='2018 Ellipsoidal')
+		 		ax10.plot(XC, Y18L, c='orange', ls='--', label='2018 Lower')
+		 		plt.legend()
 
 		plt.figure(1)
 		plt.clf()
@@ -644,8 +682,23 @@ def go(pctile=10., iCheck=1, useMags=True, \
 					  cmap='inferno', zorder=25, \
 					  edgecolor='0.4')
 		plt.plot(tLo, yLow, 'ko', ms=7, zorder=25)
-		plt.plot(tGrid[lG], twoSine(pLow, xGrid[lG]), c='k')
-		plt.plot(tGrid[lG], twoSine(p1, xGrid[lG]), c='g', ls='--')
+		elLowX = tGrid[lG]
+		lowEllip = twoSine(pLow, xGrid[lG])
+		elLowY = lowEllip
+		if plot2Phases:
+			if not showPhase:
+				print "showPhase must be set to True to plot ellipsoidals over 2 phases."
+				return
+			else:
+				elLowX, elLowY = plotAnotherPhase(phase=tGrid[lG], y=lowEllip)
+
+		plt.plot(elLowX, elLowY, c='k')
+		medEllip = twoSine(p1, xGrid[lG])
+		elMidX = tGrid[lG]
+		elMidY = medEllip
+		if plot2Phases:
+			elMidX, elMidY = plotAnotherPhase(phase=tGrid[lG], y=medEllip)
+		plt.plot(elMidX, elMidY, c='g', ls='--')
 		# plt.scatter(jd, ySub, c='violet', s=16)
 		if errorbars:
 			plt.errorbar(tSho, mag, yerr=dy, fmt='o', \
@@ -690,7 +743,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		if useMags:
 			plt.ylim(17.0, 16.5)
 		if showPhase:
-			plt.xlim(0., 1.)
+			if plot2Phases:
+				plt.xlim(0., 2.)
+			else:
+				plt.xlim(0., 1.)
 		
 		# 2018-04-07 - save the plot as png, naming convention after
 		# the figure numbers in the routine.
@@ -800,14 +856,14 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			# fine-grained version for plotting
 			tFine = np.linspace(np.min(tGen), np.max(tGen), endpoint=True, num=np.size(tGen))
 			yFine = oneSine2019(tFine, *paramsOS)
-			pFine1, _ = phaseFromJD(tFine)
+			pFine1, _ = phaseFromJD(tFine, tZer=t0)
 			ll2 = np.argsort(pFine1)
 
 			# plot by JD or phase?
 
 			tSho1 = np.copy(tGen)
 			tGrid = np.copy(xGrid)
-			phase1, u_phs1 = phaseFromJD(tGen)
+			phase1, u_phs1 = phaseFromJD(tGen, tZer=t0)
 			#print np.size(phase2)
 			#print np.size(tGen2)
 			if showPhase:
@@ -905,7 +961,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		parsTrue2 = [amp1, -2., 16.73, amp2]
 
-		xDum2 = twoSine2019(tGen2, *parsTrue2)
+		xDum2 = twoSine2019(tGen2, *parsTrue2, t0=t0)
 
 		print "True values: ", parsTrue2
 		#xDum = (tDum + mag)
@@ -1010,16 +1066,16 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 			# fine-grained version for plotting
 			tFine2 = np.linspace(np.min(tGen2), np.max(tGen2), endpoint=True, num=1000)
-			pFine2, _ = phaseFromJD(tFine2)
+			pFine2, _ = phaseFromJD(tFine2, tZer=t0)
 
-			yFine2 = twoSine2019(tFine2, *paramsTS)
+			yFine2 = twoSine2019(tFine2, *paramsTS, t0=t0)
 			ll2 = np.argsort(pFine2)
 
 			# plot by JD or phase?
 
 			tSho2 = np.copy(tGen2)
 			tGrid = np.copy(xGrid)
-			phase2, u_phs2 = phaseFromJD(tGen2)
+			phase2, u_phs2 = phaseFromJD(tGen2, tZer=t0)
 			#print np.size(phase2)
 			#print np.size(tGen2)
 			if showPhase:
@@ -1051,6 +1107,17 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			if iSet2 == iPlot2:
 				#print "x: ", np.size(tSho2)
 				#print "y: ", np.size(yDum2)
+
+				ellip = twoSine2019(xGrid[lG2], *paramsTS, t0=t0)
+				elX = tGrid[lG2]
+				elY = ellip
+
+				#print("tGrid: ", np.size(tGrid[lG2]))
+				#print("xGrid: ", np.size(xGrid[lG2]))
+
+				if plot2Phases:
+						elX, elY = plotAnotherPhase(phase=tGrid[lG2], y=ellip)
+
 				fig14 = plt.figure(14)
 				fig14.clf()
 				plt.scatter(tSho2, yDum2, color='b', s=10, zorder=10)
@@ -1065,12 +1132,21 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 			# 2019-02-01 WIC - fudge to force the same parameters
 
-			plt.plot(tGrid[lG2], twoSine2019(xGrid[lG2], *paramsTS))#, label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
+			plt.plot(elX, elY)#, label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
 
 		# 2019-01-02 - make a copy of p1 so that we can put it through twosine:
 		p1For2019 = np.array([p1[0], p1[1], p1[3], p1[4]])
-		plt.plot(tGrid[lG2], twoSine2019(xGrid[lG2], *p1For2019), 'g-.')
-		plt.plot(tGrid[lG2], twoSine(p1, xGrid[lG2]), 'g--', lw=2)
+		p1_X = tGrid[lG2]
+		p1_X2 = tGrid[lG2]
+		oldp1 = twoSine(p1, xGrid[lG2])
+		newerp1 = twoSine2019(xGrid[lG2], *p1For2019, t0=t0)
+		p1_2019_Y = newerp1
+		p1_Y = oldp1
+		if plot2Phases:
+			p1_X, p1_2019_Y = plotAnotherPhase(phase=tGrid[lG2], y=newerp1)
+			p1_X2, p1_Y = plotAnotherPhase(phase=tGrid[lG2], y=oldp1)
+		plt.plot(p1_X, p1_2019_Y, 'g-.', label=("twoSine2019(p1)"))
+		plt.plot(p1_X2, p1_Y, 'g--', lw=2, label="twoSine(p1)")
 
 
 		plt.legend()
@@ -1123,7 +1199,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# Subtract the ellipsoidal and plot the subtracted data
 
 		if plotSubtractedData:
-			fSub2 = yDum2 - twoSine2019(tGen2, *paramsTS)
+			fSub2 = yDum2 - twoSine2019(tGen2, *paramsTS, t0=t0)
 
 			fig16 = plt.figure(16)
 			fig16.clf()
@@ -1132,6 +1208,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			if errorbars:
 				ax16.errorbar(tGen2, fSub2, yerr=dy2, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
 			ax16.set_xlabel('Time (jd - 2 400 000)')	
+
+
+	#return tZer
 
 def oneSine(p,x):
 
@@ -1166,13 +1245,13 @@ def oneSine2019(x, a, phi, offset):
 
 	return a * np.sin(2.0*np.pi*x/6.4714 + phi) + offset
 
-def twoSine2019(x, a1, phi, offset, a2):
+def twoSine2019(x, a1, phi, offset, a2, t0=48813.873):
 	"""Double-amplitude ellipsoidal fit"""
 
 	# 2019-02-01 - replaced 6.4714 with 6.471528
 
 	# 2019-02-01 - calculate the phase in the exact same way as the data
-	phase, _ = np.array(phaseFromJD(x))
+	phase, _ = np.array(phaseFromJD(x, tZer=t0))
 
 	#sineOne = a1 * np.sin(2.0*np.pi*x/6.471528 + phi) + offset
 	#sineTwo = a2 * np.sin(4.0*np.pi*x/6.471528 + phi)
@@ -1537,8 +1616,7 @@ def correctMagForContaminant(magObs=20., magContam=17.2):
 	return -2.5*np.log10(fObs - fCon)
 
 def phaseFromJD(jdShort=np.array([]), per=6.4714, \
-		#tZer=48813.873, \
-		tZer=57964.4326, \
+		tZer=48813.873, \
 			u_per = 0.0001, u_tZer=0.004):
 
 	"""Compute the phase from given times. Note that the times are
@@ -1557,7 +1635,36 @@ def phaseFromJD(jdShort=np.array([]), per=6.4714, \
 	frac_var_nOrbs = (u_tZer/dt)**2 + (u_per/per)**2
 	u_phs = nOrbs * np.sqrt(frac_var_nOrbs)
 
+	print("tZer: ", tZer)
+
 	return phs, u_phs
+
+def projectEphemeris(minJD=48813.873, POrb=6.4714):
+
+	"""Projects the Casares ephemeris forward based on the first date of an observing run."""
+
+	NDays = minJD - 48813.873 #Casares Ephemeris is JD 48813.873
+	NPOrb = NDays / POrb
+	NInt = np.floor(NPOrb)
+	newT0 = NInt * POrb + 48813.873
+
+	return newT0
+
+def plotAnotherPhase(phase=np.array([]), y=np.array([])):
+
+	"""Enables plotting of ellipsoidal curves over two phases."""
+
+	num = np.size(phase)
+	#print("num: ", num)
+	#print ("y: ", np.size(y))
+	addition = np.ones(num)
+	extra = phase + addition
+	pNew = np.hstack((phase, extra))
+	#print("pNew: ", np.size(pNew))
+	yNew = np.hstack((y, y))
+	#print ("yNew: ", np.size(yNew))
+
+	return pNew, yNew
 
 # def showRawCounts(tPhot=Table(), figNam='test_rawCounts.png'):
 

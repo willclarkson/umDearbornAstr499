@@ -1044,10 +1044,15 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 			boundsTS = ([-np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf])
 
-			try:
-				paramsTS, pcovTS = optimize.curve_fit(twoSine2019, tGen2, yDum2, p0=p0TS, method='trf',\
-					bounds=boundsTS, sigma=dy2, absolute_sigma=True)
+			pGen2, _ = phaseFromJD(tGen2, tZer=t0)
 
+			# 2019-02-18 note to self: once this works, can put it back into the try/except clause
+			#try:
+			paramsTS, pcovTS = optimize.curve_fit(twoSinePhase, pGen2, yDum2, p0=p0TS, method='trf',\
+					bounds=boundsTS, sigma=dy2, absolute_sigma=True)
+				# QQQ 2019-02-18
+
+			try:
 				# slot the best-fit parameters into the results array
 				parsFound2[iSet2] = np.copy(paramsTS)
 			except:
@@ -1253,12 +1258,25 @@ def twoSine2019(x, a1, phi, offset, a2, t0=48813.873):
 	# 2019-02-01 - calculate the phase in the exact same way as the data
 	phase, _ = np.array(phaseFromJD(x, tZer=t0))
 
-	#sineOne = a1 * np.sin(2.0*np.pi*x/6.471528 + phi) + offset
-	#sineTwo = a2 * np.sin(4.0*np.pi*x/6.471528 + phi)
+	result = twoSinePhase(phase, a1, phi, offset, a2)
+
+#	#sineOne = a1 * np.sin(2.0*np.pi*x/6.471528 + phi) + offset
+#	#sineTwo = a2 * np.sin(4.0*np.pi*x/6.471528 + phi)
+
+#	sineOne = a1 * np.sin(2.0*np.pi*phase + phi) + offset
+#	sineTwo = a2 * np.sin(4.0*np.pi*phase + phi)
+
+
+#	return sineOne + sineTwo
+
+	return result
+
+def twoSinePhase(phase, a1, phi, offset, a2):
+
+	"""2019-02-18 - return the double-sinusoid expecting phase as the independent variable"""
 
 	sineOne = a1 * np.sin(2.0*np.pi*phase + phi) + offset
 	sineTwo = a2 * np.sin(4.0*np.pi*phase + phi)
-
 
 	return sineOne + sineTwo
 

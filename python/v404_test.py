@@ -362,17 +362,22 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
  	if plotEllipsoidal:
 	 	p0 = np.array([a1, phi, orbital_period, diff, a2])
+	 	guess = np.array([a1, phi, diff, a2])
+	 	bounds = ([-np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf])
 	 	#print "Guess[a1, phi, o_p, diff, a2]: ", p0
 	 	if overlayEllipsoidal:
 	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt", unpack=True)
 	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt", unpack=True)
 	 	else:
-	 		p1, success = \
-		    	optimize.leastsq(errFunc, pGuess[:], args=(jd, mag), \
-					     maxfev=int(1e6), ftol=1e-10)
-	 		pLow, successLow = \
-		    	optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), \
-					     maxfev=int(1e6), ftol=1e-10)
+	 		#p1, success = \
+		    	#optimize.leastsq(errFunc, pGuess[:], args=(jd, mag), \
+					     #maxfev=int(1e6), ftol=1e-10)
+
+		    ph, _ = phaseFromJD(jd, tZer=t0)
+
+		    p1, pcov_1 = optimize.curve_fit(twoSinePhase, ph, mag, p0=guess, method='trf', \
+		    	bounds=bounds, sigma=dy, absolute_sigma=True) 
+		    pLow, successLow = optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), maxfev=int(1e6), ftol=1e-10)
 
 		if writeEllipsoidal:
 			np.savetxt('p1'+str(data)+'.txt', p1)
@@ -587,7 +592,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 
 	if plotEllipsoidal:
-		yPred = twoSine(p1, jd)
+		yPred = twoSine2019(jd, *p1, t0=t0)
 		yPredLow = twoSine(pLow, jd)
 
 		#Generating random points throughout the best fit line
@@ -693,7 +698,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 				elLowX, elLowY = plotAnotherPhase(phase=tGrid[lG], y=lowEllip)
 
 		plt.plot(elLowX, elLowY, c='k')
-		medEllip = twoSine(p1, xGrid[lG])
+		medEllip = twoSine2019(xGrid[lG], *p1, t0=t0)
 		elMidX = tGrid[lG]
 		elMidY = medEllip
 		if plot2Phases:
@@ -1140,18 +1145,18 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			plt.plot(elX, elY)#, label='fit: a1=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(paramsTS), zorder=1)
 
 		# 2019-01-02 - make a copy of p1 so that we can put it through twosine:
-		p1For2019 = np.array([p1[0], p1[1], p1[3], p1[4]])
+		p1For2019 = np.array([p1[0], p1[1], p1[2], p1[3]])
 		p1_X = tGrid[lG2]
 		p1_X2 = tGrid[lG2]
-		oldp1 = twoSine(p1, xGrid[lG2])
+		#oldp1 = twoSine(p1, xGrid[lG2])
 		newerp1 = twoSine2019(xGrid[lG2], *p1For2019, t0=t0)
 		p1_2019_Y = newerp1
-		p1_Y = oldp1
+		#p1_Y = oldp1
 		if plot2Phases:
 			p1_X, p1_2019_Y = plotAnotherPhase(phase=tGrid[lG2], y=newerp1)
-			p1_X2, p1_Y = plotAnotherPhase(phase=tGrid[lG2], y=oldp1)
+		#	p1_X2, p1_Y = plotAnotherPhase(phase=tGrid[lG2], y=oldp1)
 		plt.plot(p1_X, p1_2019_Y, 'g-.', label=("twoSine2019(p1)"))
-		plt.plot(p1_X2, p1_Y, 'g--', lw=2, label="twoSine(p1)")
+		#plt.plot(p1_X2, p1_Y, 'g--', lw=2, label="twoSine(p1)")
 
 
 		plt.legend()

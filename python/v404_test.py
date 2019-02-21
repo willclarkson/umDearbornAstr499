@@ -369,16 +369,20 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt", unpack=True)
 	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt", unpack=True)
 	 	else:
-	 		#p1, success = \
-		    	#optimize.leastsq(errFunc, pGuess[:], args=(jd, mag), \
-					     #maxfev=int(1e6), ftol=1e-10)
-
-		    ph, _ = phaseFromJD(jd, tZer=t0)
-
-		    p1, pcov_1 = optimize.curve_fit(twoSinePhase, ph, mag, p0=guess, method='trf', \
+	 		ph, _ = phaseFromJD(jd, tZer=t0)
+	 		phLow, _ = phaseFromJD(tLow, tZer=t0)
+	 		print "phLow: ", phLow
+	 		print "tLow: ", tLow
+	 		print "yLow: ", yLow
+			p1, pcov_1 = optimize.curve_fit(twoSinePhase, ph, mag, p0=guess, method='trf', \
 		    	bounds=bounds, sigma=dy, absolute_sigma=True) 
-		    pLow, successLow = optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), maxfev=int(1e6), ftol=1e-10)
+			
+			#pLow, successLow = optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), maxfev=int(1e6), ftol=1e-10)
 
+			pLow, pcov_low = optimize.curve_fit(twoSinePhase, phLow, yLow, p0=guess, method='trf', \
+		    	bounds=bounds) # Sigma CANNOT be used for the lower envelope!
+
+		    
 		if writeEllipsoidal:
 			np.savetxt('p1'+str(data)+'.txt', p1)
 			np.savetxt('pLow'+str(data)+'.txt', pLow)
@@ -389,16 +393,15 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		print "Fit[a1, phi, o_p, diff, a2]: ", p1
 		#print "Lower Envelope: ", pLow
 
-	 	# by this point we have the ellipsoidal modulation fit to the
-	 	# dataset
-	 	ySub = mag - twoSine(pLow, jd)
+	 	# by this point we have the ellipsoidal modulation fit to the dataset
+	 	ySub = mag - twoSineTime(jd, *pLow)
 
 		# write out the ellipsoidal modulation model to disk for
 		# uniform characterization by v404ellipsoidal.py
 		tModel = Table()
 		tFine = np.linspace(np.min(jd), np.max(jd)+8., 400)
 		pFine, _ = phaseFromJD(tFine, tZer=t0)
-		yFine = twoSine(pLow, tFine)
+		yFine = twoSine2019(tFine, *pLow, t0=t0)
 		ll = np.argsort(pFine)
 
 		tModel['x'] = pFine[ll]
@@ -421,9 +424,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
  	# if you want to subtract the ellipsoidal modulation from the data, you might do:
  	if plotSubtractedData:
 	 	if showBinned:
-	 		fBinSub = fBin - twoSine(p1, tBin) # 2019-02-01: Using median lightcurve (p1) until lower envelope is fixed
+	 		fBinSub = fBin - twoSineTime(tBin, *p1) # 2019-02-01: Using median lightcurve (p1) until lower envelope is fixed
 	 	else:
-	 		fSub = mag - twoSine(p1, jd) # 2019-02-01: Using median lightcurve (p1) until lower envelope is fixed
+	 		fSub = mag - twoSineTime(jd, *pLow) # 2019-02-01: Using median lightcurve (p1) until lower envelope is fixed
 
 	 	# let's plot this...
 
@@ -593,7 +596,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	if plotEllipsoidal:
 		yPred = twoSine2019(jd, *p1, t0=t0)
-		yPredLow = twoSine(pLow, jd)
+		yPredLow = twoSine2019(jd, *pLow, t0=t0)
 
 		#Generating random points throughout the best fit line
 		#num_points = 1401
@@ -645,39 +648,95 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 
 		if compareEllipsoidals:
-			if not plotEllipsoidal:
-				print "plotEllipsoidal must be set to True in order to compare ellipsoidals."
-				return
-			else:
-		 		p1_17 = np.loadtxt("/Users/amblevin/Desktop/p12017.txt")
-		 		pLow_17 = np.loadtxt("/Users/amblevin/Desktop/pLow2017.txt")
-		 		p1_18 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt")
-		 		pLow_18 = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt")
+	 		p1_17 = np.loadtxt("/Users/amblevin/Desktop/p12017.txt")
+	 		pLow_17 = np.loadtxt("/Users/amblevin/Desktop/pLow2017.txt")
+	 		p1_18A = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt")
+	 		pLow_18A = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt")
+	 		p1_18B = np.loadtxt("/Users/amblevin/Desktop/p12018B.txt") 
+	 		pLow_18B = np.loadtxt("/Users/amblevin/Desktop/pLow2018B.txt") # Currently incorrect ellipsoidal
+	 		p1_92 = np.loadtxt("/Users/amblevin/Desktop/p11992.txt")
+	 		pLow_92 = np.loadtxt("/Users/amblevin/Desktop/pLow1992.txt")
+	 		p1_98 = np.loadtxt("/Users/amblevin/Desktop/p11998.txt")
+	 		pLow_98 = np.loadtxt("/Users/amblevin/Desktop/pLow1998.txt") # Currently incorrect ellipsoidal
 
-		 		Y17e = twoSine(p1_17, xGrid[lG])
-		 		Y17Le = twoSine(pLow_17, xGrid[lG])
-		 		Y18e = twoSine(p1_18, xGrid[lG])
-		 		Y18Le = twoSine(pLow_18, xGrid[lG])
-		 		Y17 = Y17e
-		 		Y17L = Y17Le
-		 		Y18 = Y18e
-		 		Y18L = Y18Le
-		 		XC = tGrid[lG]
+	 		Y17e = twoSine2019(xGrid[lG], *p1_17, t0=57983.8468)
+	 		Y17Le = twoSine2019(xGrid[lG], *pLow_17, t0=57983.8468)
+	 		Y18Ae = twoSine2019(xGrid[lG], *p1_18A, t0=58268.5884)
+	 		Y18ALe = twoSine2019(xGrid[lG], *pLow_18A, t0=58268.5884)
+	 		Y18Be = twoSine2019(xGrid[lG], *p1_18B, t0=58333.3024)
+	 		Y18BLe = twoSine2019(xGrid[lG], *pLow_18B, t0=58333.3024)
+	 		Y92e = twoSine2019(xGrid[lG], *p1_92, t0=48813.873)
+	 		Y92Le = twoSine2019(xGrid[lG], *pLow_92, t0=48813.873)
+	 		Y98e = twoSine2019(xGrid[lG], *p1_98, t0=48813.873)
+	 		Y98Le = twoSine2019(xGrid[lG], *pLow_98, t0=48813.873)
 
-		 		if plot2Phases:
-		 			XC, Y17 = plotAnotherPhase(phase=tGrid[lG], y=Y17e)
-		 			XC, Y17L = plotAnotherPhase(phase=tGrid[lG], y=Y17Le)
-		 			XC, Y18 = plotAnotherPhase(phase=tGrid[lG], y=Y18e)
-		 			XC, Y18L = plotAnotherPhase(phase=tGrid[lG], y=Y18Le)
+	 		Y17 = Y17e
+	 		Y17L = Y17Le
+	 		Y18A = Y18Ae
+	 		Y18AL = Y18ALe
+	 		Y18B = Y18Be
+	 		Y18BL = Y18BLe
+	 		Y92 = Y92e
+	 		Y92L = Y92Le
+	 		Y98 = Y98e
+	 		Y98L = Y98Le
+	 		XC = tGrid[lG]
 
-		 		fig10 = plt.figure(10)
-		 		fig10.clf()
-		 		ax10 = fig10.add_subplot(111)
-		 		ax10.plot(XC, Y17, c='blue', label='2017 Ellipsoidal')
-		 		ax10.plot(XC, Y17L, c='blue', ls='--', label='2017 Lower')
-		 		ax10.plot(XC, Y18, c='orange', label='2018 Ellipsoidal')
-		 		ax10.plot(XC, Y18L, c='orange', ls='--', label='2018 Lower')
-		 		plt.legend()
+	 		if plot2Phases:
+	 			XC, Y17 = plotAnotherPhase(phase=tGrid[lG], y=Y17e)
+	 			XC, Y17L = plotAnotherPhase(phase=tGrid[lG], y=Y17Le)
+	 			XC, Y18A = plotAnotherPhase(phase=tGrid[lG], y=Y18Ae)
+	 			XC, Y18AL = plotAnotherPhase(phase=tGrid[lG], y=Y18ALe)
+	 			XC, Y18B = plotAnotherPhase(phase=tGrid[lG], y=Y18Be)
+	 			XC, Y18BL = plotAnotherPhase(phase=tGrid[lG], y=Y18BLe)
+	 			XC, Y92 = plotAnotherPhase(phase=tGrid[lG], y=Y92e)
+	 			XC, Y92L = plotAnotherPhase(phase=tGrid[lG], y=Y92Le)
+	 			XC, Y98 = plotAnotherPhase(phase=tGrid[lG], y=Y98e)
+	 			XC, Y98L = plotAnotherPhase(phase=tGrid[lG], y=Y98Le)
+
+	 		# Plot of Median ellipsoidals
+	 			
+	 		fig10 = plt.figure(10)
+	 		fig10.clf()
+	 		ax10 = fig10.add_subplot(111)
+	 		ax10.plot(XC, Y92, c='blue', label='1992')
+	 		ax10.plot(XC, Y98, c='violet', label='1998')
+	 		ax10.plot(XC, Y17, c='red', label='2017')
+	 		ax10.plot(XC, Y18A, c='orange', label='2018A')
+	 		ax10.plot(XC, Y18B, c='yellow', label='2018B (suspect)')
+	 		plt.legend()
+	 		plt.title('Median Ellipsoidals')
+	 		yLims = np.copy(plt.gca().get_ylim())
+	 		plt.ylim([yLims[1], yLims[0]])
+	 		plt.xlabel('Phase (6.4714 d period)')
+	 		plt.ylabel('R (mag)')
+
+	 		# Plot of Lower Envelope Ellipsoidals (obviously incorrect ellipsoidals are not shown)
+
+	 		fig17 = plt.figure(17)
+	 		fig17.clf()
+	 		ax17 = fig17.add_subplot(111)
+	 		ax17.plot(XC, Y92L, c='blue', label='1992')
+	 		ax17.plot(XC, Y17L, c='red', label='2017')
+	 		ax17.plot(XC, Y18AL, c='orange', label='2018A')
+	 		plt.legend()
+	 		plt.title('Lower Envelope Ellipsoidals')
+	 		yLims = np.copy(plt.gca().get_ylim())
+	 		plt.ylim([yLims[1], yLims[0]])
+	 		plt.xlabel('Phase (6.4714 d period)')
+	 		plt.ylabel('R (mag)')
+
+	 		# Plot of Median Ellipsoidals in the stlye of Z04 (Once 1998 lower envelope is fixed, use those)
+
+	 		fig18 = plt.figure(18)
+	 		fig18.clf()
+	 		ax18 = fig18.add_subplot(111)
+	 		ax18.plot(XC, Y92, c='k', label='1992')
+	 		ax18.plot(XC, Y98, c='k', ls='--', label='1998')
+	 		plt.legend()
+	 		plt.xlabel('Phase (6.4714 d period)')
+	 		plt.ylabel('R (mag)')
+	 		plt.ylim([17., 16.4])
 
 		plt.figure(1)
 		plt.clf()
@@ -688,7 +747,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 					  edgecolor='0.4')
 		plt.plot(tLo, yLow, 'ko', ms=7, zorder=25)
 		elLowX = tGrid[lG]
-		lowEllip = twoSine(pLow, xGrid[lG])
+		lowEllip = twoSine2019(xGrid[lG], *pLow, t0=t0)
 		elLowY = lowEllip
 		if plot2Phases:
 			if not showPhase:
@@ -734,7 +793,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# And actually label the axes
 		if showPhase:
 			plt.xlabel('Phase (6.4714 d period)')
-			plt.xlabel('Phase (%.6f d period)' % (p1[2]))			
+			#plt.xlabel('Phase (%.6f d period)' % (p1[2]))			
 		else:
 			plt.xlabel('JD - 2 400 000.0 d')
 		
@@ -1282,6 +1341,15 @@ def twoSinePhase(phase, a1, phi, offset, a2):
 
 	sineOne = a1 * np.sin(2.0*np.pi*phase + phi) + offset
 	sineTwo = a2 * np.sin(4.0*np.pi*phase + phi)
+
+	return sineOne + sineTwo
+
+def twoSineTime(time, a1, phi, offset, a2):
+
+	"""2019-02-21 - return the double-sinusoid expecting time as the independent variable"""
+
+	sineOne = a1 * np.sin(2.0*np.pi*time + phi) + offset
+	sineTwo = a2 * np.sin(4.0*np.pi*time + phi)
 
 	return sineOne + sineTwo
 

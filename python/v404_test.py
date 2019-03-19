@@ -462,19 +462,32 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		# 2019-03-19 - recommend including extra syntax like this to also output the un-binned data table
 		# (lcPlot.py should work just fine as long as the column header names are the same).
 		if writeOnly:
-			tExp = Table()
-			tExp['tBin'] = tBin
-			tExp['fBin'] = fBin
-			tExp['uBin'] = uBin
-			tExp['nBin'] = nBin
-			tExp['fBinSub'] = fBinSub
-			tExp['phsBin'], _  = phaseFromJD(tBin, tZer=t0)
+			if showBinned:
+				tExp = Table()
+				tExp['tBin'] = tBin
+				tExp['fBin'] = fBin
+				tExp['uBin'] = uBin
+				tExp['nBin'] = nBin
+				tExp['fBinSub'] = fBinSub
+				tExp['phsBin'], _  = phaseFromJD(tBin, tZer=t0)
+			else:
+				tReg = Table()
+				tReg['tBin'] = jd
+				tReg['uBin'] = dy
+				tReg['fBinSub'] = fSub
+				tReg['phsBin'], _ = phaseFromJD(jd, tZer=t0)
+
 
 			# export this to disk
 			# filBinned='v404_binSub.fits'  ### 2019-03-18 promoted to argument to the method
-			if os.access(filBinned, os.R_OK):
-				os.remove(filBinned)
-			tExp.write(filBinned)
+			if showBinned:
+				if os.access(filBinned, os.R_OK):
+					os.remove(filBinned)
+				tExp.write(filBinned)
+			else:
+				if os.access(filExp, os.R_OK):
+					os.remove(filExp)
+				tReg.write(filExp)
 
  	orbital_period = 6.4714
  	period = np.linspace(0.0005, orbital_period, 1000)
@@ -1488,7 +1501,7 @@ def assignLowerEnvelope(t=np.array([]), y=np.array([]), chunks=np.array([]), pct
 	return tEnv[bGood], yEnv[bGood]
 
 
-def findLowPoints(t=np.array([]), y=np.array([]), restrictMedian=False, clipSigma=3., clipIters=3, data='2018'): #dy=np.array([])
+def findLowPoints(t=np.array([]), y=np.array([]), restrictMedian=True, clipSigma=3., clipIters=3, data='2018'): #dy=np.array([])
 
 	"""Finds a lower envelope using the method from Pavlenko et al. (1996)."""
 

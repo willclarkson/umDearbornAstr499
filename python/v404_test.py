@@ -93,7 +93,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       plotBinnedOnSubtracted=False, writeEllipsoidal=False, \
 	       overlayEllipsoidal=False, compareEllipsoidals=False, \
 	       genOS=False, moreTimes=False, genTS=False, amp1=-0.04, amp2=0.108, \
-	       plot2Phases=False):
+	       plot2Phases=False, \
+	       filBinned='v404_binSub.fits', \
+	       filExp='v404_unbinned_sub.fits'):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
@@ -263,64 +265,64 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	### 2018-06-01 WIC - throw in an argument to just plot for one
 	### night only
-	if writeOnly:
-		plt.style.use('ggplot')
-		fig2 = plt.figure(2, figsize=(10,4))
-		fig2.clf()
+	# if writeOnly:
+	# 	plt.style.use('ggplot')
+	# 	fig2 = plt.figure(2, figsize=(10,4))
+	# 	fig2.clf()
 
-		#print jd
+	# 	#print jd
 
-		#print np.shape(jd)
-		#print np.shape(mag)
+	# 	#print np.shape(jd)
+	# 	#print np.shape(mag)
 
-		tBin, fBin, uBin, nBin = \
-		    BinData(jd, mag, dy, tStart=tStart, tEnd=tEnd, \
-				    BinTime=binTime, plotDBG=True)
-
-
-		xSho = np.copy(jd)
-		ySho = np.copy(mag)
-		eSho = np.copy(dy)
-
-		if showBinned:
-			xSho = np.copy(tBin)
-			ySho = np.copy(fBin)
-			eSho = np.copy(uBin)
-
-		ax1 = fig2.add_subplot(111)
-		#dum = ax1.plot(jd, mag, 'bo')
-		dum2 = ax1.errorbar(xSho, ySho, eSho, fmt='bo', ls='None', \
-					    ms=1, alpha=0.5)
-
-	#	dum2 = ax1.scatter(tBin, fBin, color='b', alpha=0.5, s=4)
+	# 	tBin, fBin, uBin, nBin = \
+	# 	    BinData(jd, mag, dy, tStart=tStart, tEnd=tEnd, \
+	# 			    BinTime=binTime, plotDBG=True)
 
 
-		#dum2 = ax1.errorbar(tBin, fBin, uBin, fmt='b.', ls='None')
+	# 	xSho = np.copy(jd)
+	# 	ySho = np.copy(mag)
+	# 	eSho = np.copy(dy)
 
-		yMin = np.percentile(fBin, 1)
+	# 	if showBinned:
+	# 		xSho = np.copy(tBin)
+	# 		ySho = np.copy(fBin)
+	# 		eSho = np.copy(uBin)
 
-		yRang = np.copy(ax1.get_ylim())
-		ax1.set_ylim(yMin+0.4, yMin)
+	# 	ax1 = fig2.add_subplot(111)
+	# 	#dum = ax1.plot(jd, mag, 'bo')
+	# 	dum2 = ax1.errorbar(xSho, ySho, eSho, fmt='bo', ls='None', \
+	# 				    ms=1, alpha=0.5)
+
+	# #	dum2 = ax1.scatter(tBin, fBin, color='b', alpha=0.5, s=4)
+
+
+	# 	#dum2 = ax1.errorbar(tBin, fBin, uBin, fmt='b.', ls='None')
+
+	# 	yMin = np.percentile(fBin, 1)
+
+	# 	yRang = np.copy(ax1.get_ylim())
+	# 	ax1.set_ylim(yMin+0.4, yMin)
 		
-		### 2018-06-02 WIC - thrown-together estimate for the
-		### chisq
-		bLo = xSho < 58270.953695
-		fig3 = plt.figure(3, figsize=(5,5))
-		fig3.clf()
-		ax3 = fig3.add_subplot(111)
+	# 	### 2018-06-02 WIC - thrown-together estimate for the
+	# 	### chisq
+	# 	bLo = xSho < 58270.953695
+	# 	fig3 = plt.figure(3, figsize=(5,5))
+	# 	fig3.clf()
+	# 	ax3 = fig3.add_subplot(111)
 
-		chi = (ySho - np.median(ySho))/eSho
+	# 	chi = (ySho - np.median(ySho))/eSho
 
-		dum = ax3.hist(chi, 100)
-		print "INFO - std(chi) = %.3f" % (np.std(chi))
+	# 	dum = ax3.hist(chi, 100)
+	# 	print "INFO - std(chi) = %.3f" % (np.std(chi))
 
-		# also print out the uncertainties
-		print "INFO: dy median, std: %.3e, %.3e" \
-		    % (np.median(eSho), np.std(eSho))
+	# 	# also print out the uncertainties
+	# 	print "INFO: dy median, std: %.3e, %.3e" \
+	# 	    % (np.median(eSho), np.std(eSho))
 
-		ax1.plot(xSho[bLo], ySho[bLo], 'r.', zorder=5)
+	# 	ax1.plot(xSho[bLo], ySho[bLo], 'r.', zorder=5)
 
-		return
+	# 	return
 
 
 	# This was my (failed) attempt to use the lambda function for
@@ -332,6 +334,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	# Initial Guess for Parameters
 
 	if plotEllipsoidal:
+		if not useMags:
+			print "WARNING: Lower-envelope ellipsoidals will not plot while useMags=False."
 		a1 = 0.1# 0.02 # First Amplitude -- 'DEFAULT' VALUE IS 0.1
 		phi = -4.0 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift-- Default is -4.0
 		orbital_period = 6.4714 # According to Pavlenko et al (1996)
@@ -346,21 +350,22 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 		pGuess = np.copy(p)
 
-	# make bounds for the chunks
-	tBounds = makeBounds(jd)
-	chunks = classifyChunks(jd, tBounds)
+		# make bounds for the chunks
+		tBounds = makeBounds(jd)
+		chunks = classifyChunks(jd, tBounds)
 
-	tLow, yLow = assignLowerEnvelope(jd, mag, chunks, pctile, \
-						 useMags=useMags, \
-						 clipOutliers=clipOutliers)
+		#tLow, yLow = assignLowerEnvelope(jd, mag, chunks, pctile, \
+		#					 useMags=useMags, \
+		#					 clipOutliers=clipOutliers)
 
-	if iCheck > -1:
-		bCheck = chunks == iCheck
-		if plotHistogram:	
-			showHist(mag[bCheck])
+		tLow, yLow = assignLowerEnvelope(jd, mag, chunks, data=data)
+
+		if iCheck > -1:
+			bCheck = chunks == iCheck
+			if plotHistogram:	
+				showHist(mag[bCheck])
 
 
- 	if plotEllipsoidal:
 	 	p0 = np.array([a1, phi, orbital_period, diff, a2])
 	 	guess = np.array([a1, phi, diff, a2])
 	 	bounds = ([-np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf])
@@ -394,7 +399,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		#print "Lower Envelope: ", pLow
 
 	 	# by this point we have the ellipsoidal modulation fit to the dataset
-	 	ySub = mag - twoSineTime(jd, *pLow)
+	 	# 2019-03-19 altered twoSineTime --> twoSine2019
+	 	ySub = mag - twoSine2019(jd, *pLow)
 
 		# write out the ellipsoidal modulation model to disk for
 		# uniform characterization by v404ellipsoidal.py
@@ -424,12 +430,11 @@ def go(pctile=10., iCheck=1, useMags=True, \
  	# if you want to subtract the ellipsoidal modulation from the data, you might do:
  	if plotSubtractedData:
 	 	if showBinned:
-	 		fBinSub = fBin - twoSineTime(tBin, *p1) # 2019-02-01: Using median lightcurve (p1) until lower envelope is fixed
+	 		fBinSub = fBin - twoSine2019(tBin, *pLow)
 	 	else:
-	 		fSub = mag - twoSineTime(jd, *pLow) # 2019-02-01: Using median lightcurve (p1) until lower envelope is fixed
+	 		fSub = mag - twoSine2019(jd, *pLow)
 
 	 	# let's plot this...
-
 
  		fig11 = plt.figure(11)
  		fig11.clf()
@@ -446,8 +451,16 @@ def go(pctile=10., iCheck=1, useMags=True, \
  			ax11.plot(tBin, fBinSub, 'bo')
  			ax11.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
 
+ 		yLims = np.copy(plt.gca().get_ylim())
+ 		plt.ylim([yLims[1], yLims[0]])
+
+
+
 		# 2018-04-07 WIC - write the binned subtracted lightcurve to
 		# file to plot with other methods.
+
+		# 2019-03-19 - recommend including extra syntax like this to also output the un-binned data table
+		# (lcPlot.py should work just fine as long as the column header names are the same).
 		if writeOnly:
 			tExp = Table()
 			tExp['tBin'] = tBin
@@ -458,10 +471,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			tExp['phsBin'], _  = phaseFromJD(tBin, tZer=t0)
 
 			# export this to disk
-			filExp='v404_binSub.fits'
-			if os.access(filExp, os.R_OK):
-				os.remove(filExp)
-			tExp.write(filExp)
+			# filBinned='v404_binSub.fits'  ### 2019-03-18 promoted to argument to the method
+			if os.access(filBinned, os.R_OK):
+				os.remove(filBinned)
+			tExp.write(filBinned)
 
  	orbital_period = 6.4714
  	period = np.linspace(0.0005, orbital_period, 1000)
@@ -840,6 +853,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 						     ms=1, ecolor='0.3', alpha=0.5, \
 						     zorder=10)
 
+		# let's try overplotting the model
+		#if plotEllipsoidal:
+		#	plt.plot(jd, twoSine2019(jd, *pLow), 'k-')
+		#	plt.xlim(8804.4, 8804.8)
 
 
 
@@ -1426,7 +1443,7 @@ def classifyChunks(times=np.array([]), bounds=np.array([])):
 	return whichChunk
 
 def assignLowerEnvelope(t=np.array([]), y=np.array([]), chunks=np.array([]), pct=10., useMags=True, \
-		clipOutliers=True):
+		clipOutliers=True, data='2018'): #dy=np.array([])
 
 	"""Assigns the lower envelopes to the t,y array , partitioned by chunks, using the pct'th percentile """
 
@@ -1435,6 +1452,8 @@ def assignLowerEnvelope(t=np.array([]), y=np.array([]), chunks=np.array([]), pct
 	tEnv = np.zeros(nChunks)
 	yEnv = np.copy(tEnv)
 
+	#print("CHUNK DEBUG 0:", np.shape(t), np.shape(y), np.shape(chunks))
+
 	# now we populate:
 	for iChunk in range(nChunks):
 
@@ -1442,15 +1461,84 @@ def assignLowerEnvelope(t=np.array([]), y=np.array([]), chunks=np.array([]), pct
 		bChunk = chunks == iChunk
 
 		if np.sum(bChunk) < 1:
+			#print("WARNING - no points in chunk %i: %.2f %.2f" % (iChunk, np.min(t), np.max(t) ))
 			continue
 
 		# find the envelope for THIS chunk...
-		tMed, yMed = findLowerValue(t[bChunk], y[bChunk], pct, useMags=useMags, clipOutliers=clipOutliers)
+		#tMed, yMed = findLowerValue(t[bChunk], y[bChunk], pct, useMags=useMags, clipOutliers=clipOutliers)
+
+		#print("CHUNK DEBUG:", np.sum(bChunk))
+		tMed, yMed = findLowPoints(t[bChunk], y[bChunk], data=data)
+
+		print "tMed: ", tMed
+		print "yMed: ", yMed
+
 		tEnv[iChunk] = tMed
 		yEnv[iChunk] = yMed
 
-	return tEnv, yEnv
+		print("Chunk %i: tMed=%.2f, yMed=%.2f" % (iChunk, tMed, yMed))
 
+	#print("Chunk INFO:", tEnv)
+	#print("Chunk INFO:", yEnv)
+
+
+	# 2019-03-11 let's try trimming out the points with zero time:
+	bGood = tEnv > 0
+
+	return tEnv[bGood], yEnv[bGood]
+
+
+def findLowPoints(t=np.array([]), y=np.array([]), restrictMedian=False, clipSigma=3., clipIters=3, data='2018'): #dy=np.array([])
+
+	"""Finds a lower envelope using the method from Pavlenko et al. (1996)."""
+
+	yUse = np.copy(y)
+	yClip = sigma_clip(y, sigma=clipSigma, iters=clipIters)
+	bKeep = ~yClip.mask
+	#yUse = yUse[bKeep]
+
+	#dyUse = dy[bKeep]
+
+	if data == '1992':
+		sig = 0.02
+	else:
+		sig = np.std(yUse[bKeep])
+
+	#print "dy: ", dy[bKeep]
+	print "std: ", sig
+
+	# 2019-03-19 - let's apply both booleans separately to retain the dimensions
+	bNotClipped = bKeep
+
+	# Apply the Zurita criterion (remember larger numbers mean FAINTER!)
+	bUse = ((np.max(yUse[bNotClipped])-yUse)/sig) < 2
+
+	# now we take the subset of points not clipped AND passing the zurita criterion:
+	bEnv = (bNotClipped) & (bUse)
+
+	print np.sum(bNotClipped), np.sum(bUse), np.sum(bEnv)
+
+	print "Number of points used in this chunk: ", np.size(yUse[bEnv]), "of ", np.size(yUse)
+
+	#print ((np.max(yUse)-yUse)/sig)
+
+	yAvg = np.average(yUse[bEnv])
+
+	if restrictMedian:
+		tMed = np.average(t[bUse])
+	else:
+		tMed = np.average(t)
+
+	# fig19 = plt.figure(19)
+	# fig19.clf()
+	# ax19 = fig19.add_subplot(111)
+	# ax19.scatter(t[bUse], y[bUse])
+	# #ax19.errorbar(t[bUse], y[bUse], yerr=dy[bUse], fmt='o', ls='none', ms=4, alpha=0.5, ecolor='0.5')
+	# yLims = np.copy(plt.gca().get_ylim())
+	# plt.ylim([yLims[1], yLims[0]])
+
+
+	return tMed, yAvg
 
 
 def findLowerValue(t=np.array([]), y=np.array([]), pctile=10., useMags=True, restrictMedian=False, clipOutliers=True, clipSigma=3., clipIters=3):

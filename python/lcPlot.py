@@ -12,7 +12,8 @@ import os
 import matplotlib.pylab as plt
 plt.ion()
 
-plt.style.use('seaborn-white')
+#plt.style.use('seaborn-white')
+plt.style.use('ggplot')
 
 # a few utilities for doing the lomb-scargle
 from astroML.time_series import lomb_scargle, lomb_scargle_bootstrap
@@ -76,7 +77,7 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     lAxesLSnoise = []
 
     coloSim='g'
-    print "nPanels: %i" % (nPanels)
+    print "nPanels: %i, nRows:%i, nCols:%i" % (nPanels, nRows, nCols)
 
     # loop through the panels
     for iPlot in range(nPanels):
@@ -359,7 +360,7 @@ def whiteNoiseLS(t=np.array([]), u=np.array([]), \
     return lsNoiseUpper, lsNoise
 
 def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
-                     nTrials=1000, pctile=5.):
+                     nTrials=1000, pctile=5., stopAfterChunk=False):
 
     """Loads photometry file and plots in our nice grid"""
 
@@ -369,11 +370,141 @@ def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
         return
 
     tPho = Table.read(filTable)
+
+    # 2019-03-25: let's try cleaning the entire table by non-isolated times:
+    bNonIsol = findNonIsolatedMJD(tPho['tBin'])
+
+    # now we apply the isolation index to the table as we read it in:
+    tPho = tPho[bNonIsol]
+
     times = tPho['tBin']
     mags = tPho['fBinSub']
-    unctys = tPho['uBin']
-    dayno = np.floor(times - np.min(times)-0.2)+1
-    print np.min(dayno), np.max(dayno)
+    unctys = tPho['uBin'] # / 3.0
+ 
+    print "showBinned INFO: minmax times: %.2f, %.2f" % (np.min(times), np.max(times))
 
-    go(times, mags, unctys, dayno, test=False, nCols=nCols, \
+    # sanity check - let's view the times then quit
+
+    # 2019-03-25 - re-chunk into days (if this works, might put back into v404Test)
+    # dayno = assignDays(times)
+
+    # apply our brand new chunker here:
+    dayno2 = chunkByMJD(times)
+
+    if not stopAfterChunk:
+        go(times, mags, unctys, dayno2, test=False, nCols=nCols, \
            nNoise=nTrials, pctile=pctile)
+        return
+
+    tDiff = times-np.min(times)
+
+    #if stopAfterChunk:
+    #    bHi = (tDiff > 0.20)
+    #    tDiff=tDiff[bHi]
+    #    mags = mags[bHi]
+    #    dayno = dayno[bHi]
+
+    #    tDiff = times-np.min(times)
+    iDiff = np.asarray(tDiff, 'int')
+
+    dayno = np.floor(times - np.min(times))+0.
+    #print np.min(dayno), np.max(dayno)
+
+    # CHUNK METHOD 1: loop through the nights
+    for iChunk in range(0, np.max(iDiff)+1):
+        bThisChunk = (tDiff > iChunk - 0.4) & (tDiff < iChunk + 0.4)
+        dayno[bThisChunk] = iChunk
+
+    # CHUNK METHOD 2: go by the largest gap
+    dayno2 = np.zeros(np.size(tDiff))
+    deltat = tDiff - np.roll(tDiff,1)
+    deltat[0] = np.max(deltat)
+
+    # CHUNK 2B: let's remove points that are isolated in BOTH directions
+    deltaLo = tDiff - np.roll(tDiff, -1)
+    deltaLo[-1] = 0.
+    isol = 10. * np.abs(deltat) * np.abs(deltaLo)
+    bNonIsolated = isol < 0.5
+
+    #times = times[bNonIsolated]
+    #tDiff = tDiff[bNonIsolated]
+    #mags = mags[bNonIsolated]
+    #deltat = deltat[bNonIsolated]
+    #deltaLo = deltaLo[bNonIsolated]
+    #isol = isol[bNonIsolated]
+    #dayno = dayno[bNonIsolated]
+    #dayno2 = dayno2[bNonIsolated]
+    #unctys = unctys[bNonIsolated]
+
+    # now we have to re-compute deltat!!
+    #dayno2 = np.zeros(np.size(tDiff))
+
+    # retained for backwards compatibility with the plot
+    deltat = tDiff - np.roll(tDiff,1)
+    deltat[0] = np.max(deltat)
+
+    ## now we pick out the times for which deltat > 0.5 days (or whatever our threshold is)
+    #gNewDayLo = np.where(deltat > 0.5)[0]
+    #for iChunk in range(np.size(gNewDayLo)-1):
+    #    rowLo = gNewDayLo[iChunk]
+    #    rowHi = gNewDayLo[iChunk+1]
+    #    dayno2[rowLo:rowHi] = int(np.round(tDiff[rowLo]))
+
+    ## now we fill in that last chunk
+    #dayno2[gNewDayLo[-1]::] = int(np.round(tDiff[gNewDayLo[-1]]))
+
+    # dayno2 = chunkByMJD(times)
+
+    figX = plt.figure(6)
+    figX.clf()
+    axX = figX.add_subplot(111)
+    dum = axX.scatter(tDiff, mags, alpha=0.5, s=1, c=dayno, cmap=plt.cm.jet)
+    dum2 = axX.plot(tDiff, tDiff)
+    dum2 = axX.plot(tDiff, tDiff, 'bo', ms=4, alpha=0.75)
+
+    dum3 = axX.plot(tDiff, deltat, 'r-')
+    dum3b = axX.plot(tDiff, deltat, 'ro')
+    dum3c = axX.plot(tDiff, dayno2, 'r-.',lw=2)
+
+    dum4 = axX.plot(tDiff, deltaLo, 'g-')
+    dum4b = axX.plot(tDiff, deltaLo, 'go')
+    dum4c = axX.plot(tDiff, isol, 'b-')
+    dum4d = axX.plot(tDiff, isol, 'bo')
+
+def chunkByMJD(times=np.array([]), dtMin=0.5):
+
+    """Method to break a set of times into chunks"""
+
+    # initialize the return
+    daysRet = np.asarray(times * 0., 'int')
+
+    tDiff = times - np.min(times)
+    deltat = tDiff - np.roll(tDiff,1)
+    deltat[0] = np.max(deltat)
+
+    gNewDayLo = np.where(deltat > 0.5)[0]
+    for iChunk in range(np.size(gNewDayLo)-1):
+        rowLo = gNewDayLo[iChunk]
+        rowHi = gNewDayLo[iChunk+1]
+        daysRet[rowLo:rowHi] = int(np.round(tDiff[rowLo]))
+
+    # now we fill in that last chunk
+    daysRet[gNewDayLo[-1]::] = int(np.round(tDiff[gNewDayLo[-1]]))
+
+
+    return daysRet
+
+def findNonIsolatedMJD(times=np.array([]), isolMax=0.5, isolScale=10.):
+
+    """Returns a boolean index for all non-isolated times"""
+
+    tDiff = times - np.min(times)
+    deltat = tDiff - np.roll(tDiff,1)
+    deltat[0] = np.max(deltat)    
+
+    deltaLo = tDiff - np.roll(tDiff, -1)
+    deltaLo[-1] = 0.
+    isol = isolScale * np.abs(deltat) * np.abs(deltaLo)
+    bNonIsolated = isol < isolMax
+
+    return bNonIsolated

@@ -79,7 +79,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       #tEnd=57992.0, \
 	       binTime=0.0034722, bootstrapping=False, \
 	       errorbars=True, \
-	       magContam=17.5, magCompar=16.07, \
+	       magContam=17.52, magCompar=16.07, \
 	       showPhase=True, \
 	       writeOnly=False, \
 	       data='2017', \
@@ -1787,7 +1787,7 @@ def genData(nPoints=1000, nNights=6, Bootstrapping=False):
 
     return times[lSor], unctys[lSor], mags[lSor]
 
-def correctMagForContaminant(magObs=20., magContam=17.2):
+def correctMagForContaminant(magObs=20., magContam=17.52):
 
 	"""Utility for correcting v404 cyg's apparent magnitude for
 	contamination."""

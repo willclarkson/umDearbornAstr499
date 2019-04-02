@@ -23,7 +23,8 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
            nCols=4, \
            test=True, nNights=8, logPer=True, \
            nNoise=1000, pctile=5., \
-           lsOnAll=True):
+           lsOnAll=True, degPoly=2, errScale=1.0, showFit=True, \
+           filName='UnknownYear.txt', write=False):
     
     """Plots (time, mag, error) data partitioned by day number. 
 
@@ -79,6 +80,8 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     coloSim='g'
     print "nPanels: %i, nRows:%i, nCols:%i" % (nPanels, nRows, nCols)
 
+    sigTable = Table([[0.], [0.]], names=('JD', 'std'))
+
     # loop through the panels
     for iPlot in range(nPanels):
         bThis = dayNo == iPlot
@@ -129,6 +132,23 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         hrMin = np.min([hrMin, np.min(hrs) ])
 
         lAxes.append(ax)
+
+        # 2019-04-02: Find the standard deviation and output to the terminal
+
+        sigz, pars = findResidualSigma(hrs, mags[bThis], unctys[bThis], errScale=errScale, degPoly=degPoly)
+
+        # Show the poly-fit in Figure 1
+
+        if showFit:
+            fit = ax.plot(hrs, np.polyval(pars, hrs), 'r--')
+
+        print "Night %i: stddev %.5f" % (iPlot+1, sigz)
+
+        # Create a table with the format (JD, sigma)
+
+        meanTime = np.mean(times[bThis])
+
+        sigTable.add_row([meanTime, sigz])
 
         # now - IF there are enough datapoints - we do the
         # Lomb-Scargle
@@ -315,6 +335,20 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     # save this figure to disk
     fig5.savefig('test_alldata_LS.png', transparent=True)
 
+
+    # Remove the first row from the table
+
+    sigTable.remove_row(0)
+
+    # See what the table looks like
+
+    print sigTable
+
+    # Write the table to disk
+
+    if write:
+        sigTable.write(filName, format='ascii')
+
 def genData(nPoints=1000, nNights=6):
 
     """Utility to generate fake datapoints"""
@@ -360,7 +394,8 @@ def whiteNoiseLS(t=np.array([]), u=np.array([]), \
     return lsNoiseUpper, lsNoise
 
 def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
-                     nTrials=1000, pctile=5., stopAfterChunk=False):
+                     nTrials=1000, pctile=5., stopAfterChunk=False, \
+                     degPoly=2, errScale=1.0, filName='UnknownYear.txt', write=False):
 
     """Loads photometry file and plots in our nice grid"""
 
@@ -393,7 +428,7 @@ def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
 
     if not stopAfterChunk:
         go(times, mags, unctys, dayno2, test=False, nCols=nCols, \
-           nNoise=nTrials, pctile=pctile)
+           nNoise=nTrials, pctile=pctile, errScale=errScale, write=write, filName=filName)
         return
 
     tDiff = times-np.min(times)
@@ -508,3 +543,35 @@ def findNonIsolatedMJD(times=np.array([]), isolMax=0.5, isolScale=10.):
     bNonIsolated = isol < isolMax
 
     return bNonIsolated
+
+def findResidualSigma(times=np.array([]), mags=np.array([]), unctys=np.array([]), errScale=1.0, degPoly=2):
+
+    """Takes the residual of ellipsoidally-subtracted flare data and finds the standard deviation in quadrature"""
+
+    # Consistency check
+
+    print "errScale: ", errScale
+
+    unctys = unctys * errScale
+
+    # Fit a polynomial to the nightly light curve
+
+    pars = np.polyfit(times, mags, deg=degPoly)
+
+    # Subtract the polynomial from the data to find the residuals
+
+    sub = mags - np.polyval(pars, times)
+
+    # Find the standard deviation sigma_z
+
+    unctMean = np.mean(unctys)
+    if np.std(sub) > unctMean:
+        stddev = np.sqrt(np.std(sub)**2 - unctMean**2)
+    else:
+        print "WARN- unctMean > std(sub). Sigma has been given the dummy value of -1."
+        stddev = -1
+
+    #print "std(sub): ", np.std(sub)
+    #print "std(mags): ", np.std(mags)
+
+    return stddev, pars

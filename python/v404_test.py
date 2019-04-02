@@ -115,6 +115,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	if data == '1992':
 		tbl = t92
+		#print tbl
 		t0 = projectEphemeris()
 	elif data == '1998':
 		tbl = t98

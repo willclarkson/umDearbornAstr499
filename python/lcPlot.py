@@ -28,7 +28,9 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     
     """Plots (time, mag, error) data partitioned by day number. 
 
-    if test=True, data are generated up to nNights"""
+    if test=True, data are generated up to nNights.
+
+    If degPoly < 0, no detrending is performed."""
 
 
     # if test is set, generate the data
@@ -295,8 +297,9 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     # do the lomb-scargle on the entire dataset
     dtAll = np.max(times) - np.min(times)
     dtAll = 100./24.  # (100 hours)
+    dtAll = 12.0/24.0 # (12 hours max)
     dtMin = np.min(times[1::] - times[0:-1])
-    perAll = np.logspace(np.log10(dtMin*2.), np.log10(dtAll), 500)
+    perAll = np.logspace(np.log10(dtMin*2.), np.log10(dtAll), 250)
     omeAll = 2.0 * np.pi / perAll
 
     lsAll = lomb_scargle(times, mags, unctys, omeAll, generalized=False)
@@ -304,21 +307,32 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
 
     fig5 = plt.figure(5, figsize=(8,4))
     fig5.clf()
+
+    # try replacing perAll * 24. with omeAll / (2.0*np.pi)
+    fAll = omeAll / (2.0*np.pi * 86400.)
+
     ax51 = fig5.add_subplot(121)
     ax52 = fig5.add_subplot(122, sharex=ax51, sharey=ax51)
 
-    LS = ax51.semilogx(perAll * 24., lsAll, 'bo', ms=1, ls='-', color='b')
-    LSc = ax52.semilogx(perAll * 24., lsNoise, \
+#    LS = ax51.loglog(perAll * 24., lsAll, 'bo', ms=1, ls='-', color='b')
+#    LSc = ax52.loglog(perAll * 24., lsNoise, \
+#                            ms=1, ls='-', color='0.2', \
+#                                            alpha=0.5)
+#    LSn = ax52.loglog(perAll * 24., lsUp, alpha=0.7, color=coloSim)
+    LS = ax51.loglog(fAll, lsAll, 'bo', ms=1, ls='-', color='b')
+    LSc = ax52.loglog(fAll, lsNoise, \
                             ms=1, ls='-', color='0.2', \
                                             alpha=0.5)
-    LSn = ax52.semilogx(perAll * 24., lsUp, alpha=0.7, color=coloSim)
+    LSn = ax52.loglog(fAll, lsUp, alpha=0.7, color=coloSim)
+
 
     fig5.subplots_adjust(hspace=0.02, wspace=0.05, bottom=0.15)
 
     # standardize
     for thisAx in [ax51, ax52]:
         thisAx.grid(which='both', visible=True)
-        thisAx.set_xlabel('Period (hours)')
+#        thisAx.set_xlabel('Period (hours)')
+        thisAx.set_xlabel(r'Frequency (s$^{-1}$)')
         
     ax51.set_ylabel('LS Power')
     ax52.tick_params(labelleft='off')
@@ -394,7 +408,7 @@ def whiteNoiseLS(t=np.array([]), u=np.array([]), \
     return lsNoiseUpper, lsNoise
 
 def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
-                     nTrials=1000, pctile=5., stopAfterChunk=False, \
+                     nTrials=6, pctile=5., stopAfterChunk=False, \
                      degPoly=2, errScale=1.0, filName='UnknownYear.txt', write=False):
 
     """Loads photometry file and plots in our nice grid"""
@@ -428,7 +442,8 @@ def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
 
     if not stopAfterChunk:
         go(times, mags, unctys, dayno2, test=False, nCols=nCols, \
-           nNoise=nTrials, pctile=pctile, errScale=errScale, write=write, filName=filName)
+           nNoise=nTrials, pctile=pctile, errScale=errScale, write=write, filName=filName, \
+           degPoly=degPoly)
         return
 
     tDiff = times-np.min(times)
@@ -546,7 +561,9 @@ def findNonIsolatedMJD(times=np.array([]), isolMax=0.5, isolScale=10.):
 
 def findResidualSigma(times=np.array([]), mags=np.array([]), unctys=np.array([]), errScale=1.0, degPoly=2):
 
-    """Takes the residual of ellipsoidally-subtracted flare data and finds the standard deviation in quadrature"""
+    """Takes the residual of ellipsoidally-subtracted flare data and finds the standard deviation in quadrature.
+
+    Set degPoly < 0 to switch off detrending."""
 
     # Consistency check
 
@@ -556,7 +573,13 @@ def findResidualSigma(times=np.array([]), mags=np.array([]), unctys=np.array([])
 
     # Fit a polynomial to the nightly light curve
 
-    pars = np.polyfit(times, mags, deg=degPoly)
+    # 2019-04-08 - if degPoly < 0, don't do the fitting (but retain a zero-array for parameters 
+    # so that nothing downstream breaks).
+    if degPoly > -1:
+        pars = np.polyfit(times, mags, deg=degPoly)
+    else:
+        pars = np.array([0.])
+
 
     # Subtract the polynomial from the data to find the residuals
 

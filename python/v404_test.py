@@ -19,8 +19,9 @@ import os
 try:
 	t92 = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/199208elip_R.dat")
 	t98 = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/elipR1998.dat")
-	t99A = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/mv4_990706_apcorr.dat")
-	t99B = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/mv4_990707_apcorr.dat")
+	#t99A = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/mv4_990706_apcorr.dat")
+	#t99B = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/mv4_990707_apcorr.dat")
+	t99 = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/Both1999Nights.txt")
 	t03 = loadOld.loadPhot(fileIn="/Users/Shared/Data/v404Cyg_zurita04/28_July_2003_iac80.qdp")
 	t17 = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/G4_2017.txt")
 	t18A = loadOld.loadPhot(fileIn="/Users/amblevin/Desktop/G4_2018A.txt")
@@ -77,7 +78,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       tStart=-1e9, \
 	       tEnd = 57993., \
 	       #tEnd=57992.0, \
-	       binTime=0.0034722, bootstrapping=False, \
+	       binTime=0.003703703703703704, bootstrapping=False, \
 	       errorbars=True, \
 	       magContam=17.52, magCompar=16.07, \
 	       showPhase=True, \
@@ -99,8 +100,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
 
-	warn = "WARNING: Ellipsoidal modulation will not work for 1999 and 2003!"
+	warn = "WARNING: Ellipsoidal modulation will not work for 2003!"
 	warn2 = "WARNING: Binned and subtracted data only plots if plotEllipsoidal is set to True."
+	warn3 = "WARNING: Ellipsoidal modulation will only work for 1999 if overlayEllipsoidal = True"
 	#warn3 = "2017 and 2018A data will not work for this version of v404_test on Christian's account."
 
 	if not plotEllipsoidal:
@@ -121,14 +123,10 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		tbl = t98
 		t0 = projectEphemeris()
 		print "WARNING: Due to 1998 data already being in phase, binning currently does not work."
-	elif data == '1999A':
-		tbl = t99A
+	elif data == '1999':
+		tbl = t99
 		t0 = projectEphemeris()
-		print warn
-	elif data == '1999B':
-		tbl = t99B
-		t0 = projectEphemeris()
-		print warn
+		print warn3
 	elif data == '2003':
 		tbl = t03
 		t0 = projectEphemeris()
@@ -148,7 +146,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		oldT0 = np.min(tbl['time'])
 		t0 = projectEphemeris(minJD=oldT0)
 	else:
-		print "The value for 'data' must be either 1992, 1998, 1999A, 1999B, 2003, 2017, 2018A or 2018B."
+		print "The value for 'data' must be either 1992, 1998, 1999, 2003, 2017, 2018A or 2018B."
 		return
 
 	# t1212 = Table.read(inPath, format='ascii.csv')
@@ -241,6 +239,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	if 'time' in tbl.colnames:
 		jd = tbl['time']
+		if data == '1999':
+			jd = jd + 51360
 		# compute the phase on the orbital ephemeris.
 		phase, u_phase = phaseFromJD(jd, tZer=t0)
 	else:
@@ -372,8 +372,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	 	bounds = ([-np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf])
 	 	#print "Guess[a1, phi, o_p, diff, a2]: ", p0
 	 	if overlayEllipsoidal:
-	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt", unpack=True)
-	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt", unpack=True)
+	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p11998.txt", unpack=True)
+	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow1998.txt", unpack=True)
 	 	else:
 	 		ph, _ = phaseFromJD(jd, tZer=t0)
 	 		phLow, _ = phaseFromJD(tLow, tZer=t0)
@@ -639,6 +639,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 			xGrid = np.linspace(8801., 8817., 1000)
 		elif data == '1998':
 			xGrid = np.linspace(51004., 51015., 1000)
+		elif data == '1999':
+			xGrid = np.linspace(51366., 51368., 1000)
 		#randfunc = twoSine(pLow,xGrid)
 
 		# Plotting the v404 data and the best fit line
@@ -1586,12 +1588,15 @@ def findLowerValue(t=np.array([]), y=np.array([]), pctile=10., useMags=True, res
 
 	return tMed, pctVal	
 
-def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2, tStart=-1e9, tEnd=57992., BinTime=0.0034722, \
-	Verbose=True, plotDBG=False):
+def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2, tStart=-1e9, tEnd=57992., BinTime=0.003703703703703704, \
+	Verbose=True, plotDBG=False, binIsSeconds=False):
 
     """Bin data given a time-series.
 
     RETURNS binned time, rate, uncertainty, and the number per bin"""
+
+    if binIsSeconds:
+    	binTime = binTime / 86400.
 
 	# Initialize output arrays:
     vOutTime = np.array([])
@@ -1599,7 +1604,7 @@ def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2,
     vOutError = np.array([])
     vNPerBin = np.array([])
 
-    if np.size(vTime) < 2:
+    if np.size(vTime) < 1:
     	return vOutTime, vOutRate, vOutError, vNPerBin
 
     # tStart is needed; tEnd is not needed yet!

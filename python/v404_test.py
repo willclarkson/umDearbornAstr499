@@ -1588,7 +1588,7 @@ def findLowerValue(t=np.array([]), y=np.array([]), pctile=10., useMags=True, res
 
 	return tMed, pctVal	
 
-def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2, tStart=-1e9, tEnd=57992., BinTime=0.003703703703703704, \
+def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=1, tStart=-1e9, tEnd=57992., BinTime=0.003703703703703704, \
 	Verbose=True, plotDBG=False, binIsSeconds=False):
 
     """Bin data given a time-series.
@@ -1624,7 +1624,7 @@ def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2,
         print "BinData settings:"
         print "tStart: %.3f , tEnd: %.3f" % (tStart, tEnd)
         print "nMin = %i" % (nMin)
-        print "BinTime = %.2f" % (BinTime)
+        print "BinTime = %.2e" % (BinTime)
         print "=================="
 
     # Now we do the binning:
@@ -1655,7 +1655,7 @@ def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2,
     vOutError = np.array([])
     vNPerBin = np.array([])
 
-    print np.shape(vBinIDs)
+    print np.shape(vBinIDs), np.min(vTime), np.max(vTime), np.min(vBinTimes), np.max(vBinTimes), nMin
 
     for iBin in range(0, np.size(vBinIDs)):
         
@@ -1665,7 +1665,8 @@ def BinData(vTime=np.array([]), vRate=np.array([]), vError=np.array([]), nMin=2,
 
         # ignore data > tend
         if ThisTEnd >= tEnd:
-            continue
+        	print "HALT CONDITION: %i" % (iBin)
+        	continue
 
         # all datapoints inside this bin, we average together
         gInThisBin = np.where( (vTime >= ThisTStart) & (vTime < ThisTEnd) )[0]

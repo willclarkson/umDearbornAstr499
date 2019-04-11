@@ -15,7 +15,7 @@ import matplotlib.pylab as plt
 plt.ion()
 plt.style.use('ggplot')
 
-def go(binned=True, showOutburst=True, degPoly=0):
+def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False):
 
 	"""Reads sigma-z data and produces plots similar to Figure 4 of Zurita et al (2004)"""
 
@@ -131,38 +131,52 @@ def go(binned=True, showOutburst=True, degPoly=0):
 	mZ04 = np.mean([0.040, 0.034, 0.025, 0.042, 0.038, 0.041]) # From Table 3 of Z04
 	aZ04 = np.repeat(mZ04, len(jdAll))
 
+	jdAllBut18B = np.hstack([jd92, jd98, jd99, jd17, jd18A])
+	sigAllBut18B = np.hstack([sig92, sig98, sig99, sig17, sig18A])
+
 	# Plot sigma-z vs. time for each night
 
 	f1 = plt.figure(1)
 	f1.clf()
 	ax1 = f1.add_subplot(111)
-	ax1.scatter(jdAll, sigAll, color='k')
-	ax1.plot(jdAll, meanAll, 'r--', label="Mean (All data)")
-	ax1.plot(jdAll, meanZ04, 'g--', label="Mean (Zurita data)")
-	ax1.plot(jdAll, meanMDM, 'b--', label="Mean (MDM data)")
-	ax1.plot(jdAll, aZ04, 'k--', label="Mean (Z04 Figure 4)")
+	ax1.scatter(jdAllBut18B, sigAllBut18B, color='k', alpha=0.6)
+	ax1.scatter(jd18B, sig18B, color='r', alpha=0.6)
+	ax1.hlines(meanAll, 47000, 60000, color='black', lineStyles='--', label="Mean (All data)")
+	if not figPrep:
+		ax1.plot(jdAll, meanZ04, 'g--', label="Mean (Zurita data)")
+		#ax1.plot(jdAll, meanMDM, 'b--', label="Mean (MDM data)")
+		ax1.hlines(meanMDM, 47000, 60000, color='blue', lineStyles='--', label="Mean(MDM Data)")
+		ax1.plot(jdAll, aZ04, 'k--', label="Mean (Z04 Figure 4)")
 	if showOutburst:
-		plt.vlines(47667, ymin=0., ymax=0.08, color='violet', label="1989 Outburst") # Date obtained from X-Ray Binaries Book
-		plt.vlines(x=57194, ymin=0., ymax=0.08, color='y', label="2015 Outburst") # Date obtained from Munoz-Darias et al (2016)
-	ax1.legend()
+		plt.vlines(47667, ymin=0., ymax=0.08, color='g', label="1989 Outburst") # Date obtained from X-Ray Binaries Book
+		plt.vlines(x=57194, ymin=0., ymax=0.08, color='b', label="2015 Outburst") # Date obtained from Munoz-Darias et al (2016)
+	ax1.legend(loc=9)
 	plt.xlabel("JD - 2 400 000")
 	plt.ylabel(r"$\sigma_{z}$")
-	if binned:
-		plt.title("Nightly Flare Activity (Binned); Degree %i" % degPoly)
+	ax1.set_xlim(47000, 60000)
+	ax1.set_ylim(0,0.08)
+	if figPrep:
+		plt.title("Nightly Flare Activity")
 	else:
-		plt.title("Nightly Flare Activity; Degree %i" % degPoly)
+		if binned:
+			plt.title("Nightly Flare Activity (Binned); Degree %i" % degPoly)
+		else:
+			plt.title("Nightly Flare Activity; Degree %i" % degPoly)
 	plt.show()
 
 	# Find the average sigma-z for each year
 
 	mjd92 = np.mean(jd92)
 	msz92 = np.mean(sig92)
+	print "msz92: ", msz92
 
 	mjd98 = np.mean(jd98)
 	msz98 = np.mean(sig98)
+	print "msz98: ", msz98
 
 	mjd99 = np.mean(jd99)
 	msz99 = np.mean(sig99)
+	print "msz99: ", msz99
 
 	mjd17 = np.mean(jd17)
 	msz17 = np.mean(sig17)
@@ -175,6 +189,9 @@ def go(binned=True, showOutburst=True, degPoly=0):
 
 	mjdAll = np.hstack([mjd92, mjd98, mjd99, mjd17, mjd18A, mjd18B])
 	msAll = np.hstack([msz92, msz98, msz99, msz17, msz18A, msz18B])
+
+	mjdAllBut18B = np.hstack([mjd92, mjd98, mjd99, mjd17, mjd18A])
+	msAllBut18B = np.hstack([msz92, msz99, msz99, msz17, msz18A])
 
 	# Find dashed lines
 
@@ -192,20 +209,27 @@ def go(binned=True, showOutburst=True, degPoly=0):
 	f2 = plt.figure(2)
 	f2.clf()
 	ax2 = f2.add_subplot(111)
-	ax2.scatter(mjdAll, msAll, color='k')
-	ax2.plot(mjdAll, dlZ04, 'k--', label="Mean (Z04 Figure 4)")
-	ax2.plot(mjdAll, dl92and98, 'g--', label="Mean (Zurita data)")
-	ax2.plot(mjdAll, dlMDM, 'b--', label="Mean (MDM Data)")
-	ax2.plot(mjdAll, dlAll, 'r--', label="Mean (All data)")
+	ax2.scatter(mjdAllBut18B, msAllBut18B, color='k')
+	ax2.scatter(mjd18B, msz18B, color='r')
+	ax2.hlines(dlAll, 47000, 60000, color='k', lineStyles='--', label="Mean (All data)")
+	if not figPrep:
+		ax2.plot(mjdAll, dlZ04, 'k--', label="Mean (Z04 Figure 4)")
+		ax2.plot(mjdAll, dl92and98, 'g--', label="Mean (Zurita data)")
+		ax2.plot(mjdAll, dlMDM, 'b--', label="Mean (MDM Data)")
+		ax2.plot(mjdAll, dlAll, 'r--', label="Mean (All data)")
 	if showOutburst:
-		plt.vlines(47667, ymin=0., ymax=0.08, color='violet', label="1989 Outburst") # Date obtained from X-Ray Binaries Book
-		plt.vlines(x=57194, ymin=0., ymax=0.08, color='y', label="2015 Outburst") # Date obtained from Munoz-Darias et al (2016)
-	ax2.legend()
-	ax2.set_ylim(0, 0.07)
+		plt.vlines(47667, ymin=0., ymax=0.08, color='g', label="1989 Outburst") # Date obtained from X-Ray Binaries Book
+		plt.vlines(x=57194, ymin=0., ymax=0.08, color='b', label="2015 Outburst") # Date obtained from Munoz-Darias et al (2016)
+	ax2.legend(loc=9)
+	ax2.set_xlim(47000, 60000)
+	ax2.set_ylim(0, 0.08)
 	plt.xlabel("JD - 2 400 000")
 	plt.ylabel(r"$\sigma_{z}$")
-	if binned:
-		plt.title ("Yearly Flare Activity (Binned); Degree %i" % degPoly)
+	if figPrep:
+		plt.title("Yearly Flare Activity")
 	else:
-		plt.title("Yearly Flare Activity; Degree %i" % degPoly)
+		if binned:
+			plt.title ("Yearly Flare Activity (Binned); Degree %i" % degPoly)
+		else:
+			plt.title("Yearly Flare Activity; Degree %i" % degPoly)
 	plt.show()

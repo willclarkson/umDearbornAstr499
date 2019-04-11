@@ -6,7 +6,7 @@
 
 from astropy.table import Table
 import numpy as np
-
+import v404_test
 import os
 
 import matplotlib.pylab as plt
@@ -24,7 +24,7 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
            test=True, nNights=8, logPer=True, \
            nNoise=1000, pctile=5., \
            lsOnAll=True, degPoly=2, errScale=1.0, showFit=True, \
-           filName='UnknownYear.txt', write=False):
+           filName='UnknownYear.txt', write=False, binLS=False, select=True, writeLS=False):
     
     """Plots (time, mag, error) data partitioned by day number. 
 
@@ -84,7 +84,15 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
 
     sigTable = Table([[0.], [0.]], names=('JD', 'std'))
 
+    ## 2019-04-11 - let's set up a master 'detrended' array for the LS
+    detMJD= np.array([])
+    detMag = np.array([])
+    detUnc = np.array([])
+
     # loop through the panels
+    # hack for 17:
+    #iPanels = [3,5]
+    #for iPlot in iPanels:
     for iPlot in range(nPanels):
         bThis = dayNo == iPlot
         if np.sum(bThis) < 10:
@@ -138,6 +146,12 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         # 2019-04-02: Find the standard deviation and output to the terminal
 
         sigz, pars = findResidualSigma(hrs, mags[bThis], unctys[bThis], errScale=errScale, degPoly=degPoly)
+
+        # let's re-produce the detrended points and stack them back on to the master array
+        thisDetMag = mags[bThis] - np.polyval(pars, hrs)
+        detMJD = np.hstack(( detMJD, times[bThis]))
+        detMag = np.hstack(( detMag, thisDetMag))
+        detUnc = np.hstack(( detUnc, unctys[bThis]))
 
         # Show the poly-fit in Figure 1
 
@@ -256,6 +270,10 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         # set the y limit
         ### 2018-05-07 
         thisAx.set_ylim(np.max(mags + unctys), np.min(mags - unctys))
+
+        # 2019-04-09: Set the y-range for all the axes to be the same as Z04 Figure 3
+
+        thisAx.set_ylim([0.05, -0.3])
         
     # do the same for the lomb-scargle figures
     for iAx in range(len(lAxesLS)):
@@ -302,7 +320,11 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     perAll = np.logspace(np.log10(dtMin*2.), np.log10(dtAll), 250)
     omeAll = 2.0 * np.pi / perAll
 
-    lsAll = lomb_scargle(times, mags, unctys, omeAll, generalized=False)
+    # let's do the LS on the detrended data
+
+    # lsAll = lomb_scargle(times, mags, unctys, omeAll, generalized=False)
+
+    lsAll = lomb_scargle(detMJD, detMag, detUnc, omeAll, generalized=False)
     lsUp, lsNoise = whiteNoiseLS(times, unctys, omeAll, nNoise, pctile)
 
     fig5 = plt.figure(5, figsize=(8,4))
@@ -310,6 +332,20 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
 
     # try replacing perAll * 24. with omeAll / (2.0*np.pi)
     fAll = omeAll / (2.0*np.pi * 86400.)
+
+    # take log10 of frequency and power
+
+    logFreq = np.log10(fAll)
+    logPower = np.log10(lsAll)
+
+    # Save this to a table
+
+    tbl = Table([fAll, lsAll])
+    if writeLS:
+        tbl.write(filName, format='ascii')
+    # Try to select only the data that have a frequency between -3.9 and -2.8
+
+    pwrFit = np.polyfit(logFreq, logPower, 1)
 
     ax51 = fig5.add_subplot(121)
     ax52 = fig5.add_subplot(122, sharex=ax51, sharey=ax51)
@@ -363,6 +399,50 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     if write:
         sigTable.write(filName, format='ascii')
 
+    # Create a "Figure 7" to plot the logs of the LS in linear space (really logspace, since we're plotting logs)
+
+    f7 = plt.figure(7)
+    f7.clf()
+    ax7 = f7.add_subplot(111)
+    ax7.scatter(logFreq, logPower, color='b')
+    ax7.plot(logFreq, logPower, color='b')
+    ax7.plot(logFreq, np.polyval(pwrFit, logFreq), c='r', label=r"$\beta$" +": %5.2f" % pwrFit[0])
+    ax7.legend()
+    ax7.set_xlabel("log(Frequency)")
+    ax7.set_ylabel("log(LS Power)")
+
+    if binLS:
+
+
+        nBins = 20
+
+        freqBin, pwrBin, errBin, nPerBin = v404_test.BinData(fAll, lsAll, np.ones(len(fAll)), \
+            tStart=10**-3.9, tEnd=10**-2.8, BinTime=(0.00146 / nBins))
+
+        print np.shape(pwrBin)
+
+        logFreqBin = np.log10(freqBin)
+        logPwrBin = np.log10(pwrBin)
+        pwrFitBin, covarBin = np.polyfit(logFreqBin, logPwrBin, 1, cov=True)
+
+        print "Line, covariance matrix:", pwrFitBin, covarBin
+        stdResid = np.std(logPwrBin - np.polyval(pwrFitBin, logFreqBin))
+        print "Stddev of residuals: %.2e" % (stdResid)
+
+        f8 = plt.figure(8)
+        f8.clf()
+        ax8 = f8.add_subplot(111)
+        ax8.scatter(logFreqBin, logPwrBin, color='b')
+        ax8.plot(logFreqBin, np.polyval(pwrFitBin, logFreqBin), c='r', label=r"$\beta$" +": %5.2f" % pwrFitBin[0])
+        ax8.legend()
+        ax8.set_xlabel("log(Frequency)")
+        ax8.set_ylabel("log(LS Power)")
+
+        # Monte-Carlo for beta values varying bin numbers
+
+        #if MC:
+        #mcTbl = Table()
+
 def genData(nPoints=1000, nNights=6):
 
     """Utility to generate fake datapoints"""
@@ -409,7 +489,8 @@ def whiteNoiseLS(t=np.array([]), u=np.array([]), \
 
 def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
                      nTrials=6, pctile=5., stopAfterChunk=False, \
-                     degPoly=2, errScale=1.0, filName='UnknownYear.txt', write=False):
+                     degPoly=0, errScale=1.0, filName='UnknownYear.txt', write=False, \
+                     binLS=False, select=True, writeLS=False):
 
     """Loads photometry file and plots in our nice grid"""
 
@@ -443,7 +524,7 @@ def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
     if not stopAfterChunk:
         go(times, mags, unctys, dayno2, test=False, nCols=nCols, \
            nNoise=nTrials, pctile=pctile, errScale=errScale, write=write, filName=filName, \
-           degPoly=degPoly)
+           degPoly=degPoly, binLS=binLS, select=select, writeLS=writeLS)
         return
 
     tDiff = times-np.min(times)

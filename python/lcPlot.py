@@ -21,7 +21,7 @@ from astroML.time_series import lomb_scargle, lomb_scargle_bootstrap
 def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
            dayNo=np.array([]), \
            nCols=4, \
-           test=True, nNights=8, logPer=True, \
+           test=True, nNights=8, logPer=True,
            nNoise=1000, pctile=5., \
            lsOnAll=True, degPoly=2, errScale=1.0, showFit=True, \
            filName='UnknownYear.txt', write=False, binLS=False, select=True, writeLS=False):
@@ -89,12 +89,21 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
     detMag = np.array([])
     detUnc = np.array([])
 
+    # 2019-04-18 WIC - hacked to handle less orthodox panel ordering
+    rowNotEmpty = False
+
     # loop through the panels
     # hack for 17:
     #iPanels = [3,5]
     #for iPlot in iPanels:
     for iPlot in range(nPanels):
         bThis = dayNo == iPlot
+
+
+        # 2019-04-18 WIC - hack for labeline
+        if iPlot % nCols < 1:
+            rowNotEmpty = False
+
         if np.sum(bThis) < 10:
             print "Bad interval: %i, %i points" % (iPlot, np.sum(bThis))
             continue
@@ -110,9 +119,10 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
 
         # do the plot
         dum = ax.errorbar(hrs, mags[bThis], unctys[bThis], \
-                              ls='None', ecolor='0.6', \
+                              ls='None', ecolor='b', \
                               marker='o', color='b', \
-                              ms=1, alpha=0.5)
+                              ms=2, alpha=0.5, elinewidth=1)
+
 
 
         # Set the label for the day number
@@ -126,16 +136,36 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
 
         # if we're more than nCols from the end, hide the horizontal
         # axis
-        if nPanels - iPlot > nCols:
+        if nPanels - iPlot > nCols and iPlot > 0:
             ax.tick_params(labelbottom='off')
         else:
             ax.set_xlabel('Time (hours)')
 
-        if iPlot % nCols > 0:
-            ax.tick_params(labelleft='off')
+            # 2019-04-18 WIC - another hack to suppress the last time label to avoid overlap
+            
+            #xticks = ax.xaxis.get_major_ticks()
+            #xticks[-1].set_visible(False) 
+
+        #2019-04-19 WIC - that hack again
+        if not rowNotEmpty:
+            ax.set_ylabel(r'$\Delta R$ (mag)')
+            rowNotEmpty = True
+
+            # 2019-04-18 WIC - 
+            # if this is anything other than the upper-left corner, hide the uppermost tick since it'll overlap
+            if iPlot > 0:
+                yticks = ax.yaxis.get_major_ticks()
+                yticks[0].set_visible(False) 
+
         else:
-            ax.set_ylabel(r'$\Delta R$')
+
+#        if iPlot % nCols > 0:
+            ax.tick_params(labelleft='off')
+#        else:
+#            ax.set_ylabel(r'$\Delta R$')
         
+        
+
         # record the maximum axis length so that we can access it
         # later
         hrMax = np.max([hrMax, np.max(hrs) ])
@@ -156,7 +186,7 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         # Show the poly-fit in Figure 1
 
         if showFit:
-            fit = ax.plot(hrs, np.polyval(pars, hrs), 'r--')
+            fit = ax.plot(hrs, np.polyval(pars, hrs), 'k--', lw=1)
 
         print "Night %i: stddev %.5f" % (iPlot+1, sigz)
 
@@ -490,7 +520,7 @@ def whiteNoiseLS(t=np.array([]), u=np.array([]), \
 def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
                      nTrials=6, pctile=5., stopAfterChunk=False, \
                      degPoly=0, errScale=1.0, filName='UnknownYear.txt', write=False, \
-                     binLS=False, select=True, writeLS=False):
+                     binLS=False, select=True, writeLS=False, forProposal=False):
 
     """Loads photometry file and plots in our nice grid"""
 
@@ -498,6 +528,14 @@ def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
         print "showBinned WARN - cannot read input path %s" \
             % (filTable)
         return
+
+        # 2019-04-use style sheet depending on what we're doing
+    if not forProposal:
+        plt.style.use('ggplot')
+    else:
+        plt.style.use('classic')
+        #plt.style.use('seaborn-poster')
+        #plt.style.use('seaborn-white')
 
     tPho = Table.read(filTable)
 

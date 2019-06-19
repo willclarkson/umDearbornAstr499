@@ -9,10 +9,22 @@
 # distribution as the Zurita et al. 2004 datasets to which we have
 # access.
 
+# 2019-06-19 4:30pm - to add: 
+#
+# (i)    read in new sampling lightcurve WITH GAPS
+#
+# (ii) fill in the gaps with similar-sampling lightcurve (to demo the
+# underlying process even when we are missing data)
+#
+# (iii)  read in the Z04 lightcurve with ellipsoidals subtracted
+#
+# (iv) implement the figure of merit for lightcurve comparison
+
 import os, sys, time
 import numpy as np
 import matplotlib.pylab as plt
 
+from astropy.table import Table
 from astropy.stats import LombScargle # for characterization
 from sympy import factorint
 import DELCgen
@@ -44,6 +56,12 @@ class FakeLC(object):
         # Model PSD parameters: defaults for self-testing
         #self.PSDpars = [10., 10., 0.00, 1., 50.]
         self.PSDpars = [100., 1000, 1.5, 1.5, 0.]
+
+        # the following two are from tests of DELCgen's own
+        # PSD-fitting on the raw 1992 data. I suspect the fitter isn't
+        # working...
+        #self.PSDpars = [0.10, 2.80, 19.1, 2.04, 14.02] # from a pass of fitter
+        #self.PSDpars = [2.2e-6, 1.57, 1.57, 1.57, 3.3]
 
         #self.PSDpars = [5.01345204e-03,\
         #                    1.93937705e-02,\
@@ -340,3 +358,27 @@ def testFakeLC():
     FLC.showLC()
 
     print FLC.LCsample.flux - FLC.LCblank.flux
+
+
+def testDirect(filIn='lc92raw.txt', yStd=0.05, tBin=1e4):
+
+    """More direct method - try using the DELCgen methods to
+    characterize the LC as well"""
+
+    
+    tOld = Table.read(filIn, comment='%', format='ascii')
+
+    tData = tOld['col1']
+    yData = tOld['col2']
+    eData = np.repeat(yStd, np.size(tData))
+
+    lcData = DELCgen.Lightcurve(tData, yData, tBin, eData)
+
+    print "Fitting PSD..."
+    lcData.Fit_PSD(model=DELCgen.BendingPL, verbose=True)
+
+    print "Fitting PDF..."
+    lcData.Fit_PDF()
+
+    print lcData.psdFit
+    print lcData.psdModel

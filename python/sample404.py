@@ -55,7 +55,7 @@ class FakeLC(object):
 
         # Model PSD parameters: defaults for self-testing
         #self.PSDpars = [10., 10., 0.00, 1., 50.]
-        self.PSDpars = [100., 1000, 1.5, 1.5, 0.]
+        self.PSDpars = [100., 1000, 1.0, 1.0, 0.]
 
         # the following two are from tests of DELCgen's own
         # PSD-fitting on the raw 1992 data. I suspect the fitter isn't
@@ -77,7 +77,7 @@ class FakeLC(object):
 
         # control parameters for sampled lightcurve
         self.sampleMean = 16.0
-        self.sampleStd = 0.3
+        self.sampleStd = 0.2
         self.sampleLen = 0
         self.sampleTbin = 100000 # make this large for fine sampling
 
@@ -317,7 +317,7 @@ class FakeLC(object):
 
         dumScatt = ax1.errorbar(tSampl, ySampl, yerr=eSampl, ls='none', \
                                     ms=2, alpha=0.5, marker='o', zorder=2)
-        dumPlot = ax1.plot(tSampl, ySampl, alpha=0.3, zorder=1, c='b')
+        dumPlot = ax1.plot(tSampl, ySampl, alpha=0.15, zorder=1, c='b')
         ax1.set_xlabel('MJD')
         ax1.set_ylabel('Flux')
 
@@ -328,17 +328,149 @@ class FakeLC(object):
         ax2.set_ylabel('LS power')
         ax2.set_xlim(self.lsPmin, self.lsPmax)
 
-def testFakeLC():
+class TimeChunks(object):
+
+    """Convenience object to identify chunks in a time-series"""
+
+    def __init__(self, times=np.array([]), chunkMin=0.01, \
+                     runOnInit=True):
+
+        self.chunkMin=chunkMin
+        self.times = np.copy(times)
+
+        self.chunkIDs = np.array([])
+
+        if runOnInit:
+            self.findChunks()
+            self.assignChunkIDs()
+
+    def findChunks(self):
+
+        """Finds the chunks"""
+        
+        bStarts = self.times - np.roll(self.times, 1) > self.chunkMin
+        bEnds = np.roll(self.times, -1) - self.times > self.chunkMin
+
+        # don't forget the endpoints
+        bStarts[0] = True
+        bEnds[-1] = True
+
+        self.chunkStarts = self.times[bStarts]
+        self.chunkEnds = self.times[bEnds]
+
+    def assignChunkIDs(self):
+
+        """Assign every point to a chunk"""
+    
+        self.chunkIDs = np.repeat(0, np.size(self.times))
+        for iChunk in range(np.size(self.chunkStarts)):
+
+            # conditional must be .le. and .ge. not .lt. or .gt.
+            bChunkAbove = self.times >= self.chunkStarts[iChunk] 
+            bChunkBelow = self.times <= self.chunkEnds[iChunk]
+            bChunk = bChunkAbove & bChunkBelow
+                                  
+            self.chunkIDs[bChunk] = iChunk
+
+    def timesInChunks(self, tTest=np.array([])):
+
+        """For input times, return True for items that are within a
+        chunk"""
+
+        bWithin = np.repeat(False, np.size(tTest))
+
+        # I don't know of a quick array-based way to do this, so let's
+        # loop through the chunks instead.
+
+        for iChunk in range(np.size(self.chunkStarts)):
+            bHi = tTest >= self.chunkStarts[iChunk]
+            bLo = tTest <= self.chunkEnds[iChunk]
+            bThis = bHi & bLo
+
+            bWithin[bThis] = True
+
+        return bWithin
+
+    def mergeWithChunks(self, tInpu=np.array([])):
+
+        """Given an input time array, replaces any times within a
+        chunk with the object times that are actually in the chunk"""
+
+        bInChunk = self.timesInChunks(tInpu)
+        
+        # construct the output by stacking input times not in a chunk
+        # with the times in the chunks, then sorting by time
+        tCombo = np.hstack((tInpu[~bInChunk], self.times))
+        return np.sort(tCombo)
+            
+
+def testFakeLC(sampleFil=''):
 
     """Tests the functionality of the fake lc generator"""
 
     FLC = FakeLC()
 
-    # Fake data to simiulate an "old" lightcurve
-    FLC.genTemplateLightcurve()
+    # load sample times to send to the sampler
+    if os.access(sampleFil, os.R_OK):
+        tTimes = Table.read(sampleFil)
+        FLC.tSample = tTimes['time']/1440.
 
-    # generate blank template for sampling with BPL
-    FLC.genSampleTimes(2000, mjdMax=8)
+        # test our chunkfinder
+        TC = TimeChunks(FLC.tSample)
+
+        # generate a uniformly sampled array over the whole time
+        # baseline so that we can test our distinguisher
+        tUnif = np.linspace(0., 5.5, 1000)
+        tJoin = TC.mergeWithChunks(tUnif)
+        yJoin = np.repeat(1.2, np.size(tJoin))
+        bJoin = TC.timesInChunks(tJoin)
+                          
+        
+        # generate a time array a little longer
+        tRand = np.random.uniform(0., 5.5, 1000)
+        yRand = np.repeat(0.90, np.size(tRand))
+        bRand = TC.timesInChunks(tRand)
+        
+
+        plt.figure(2)
+        plt.clf()
+        yTimes = np.repeat(1.0, np.size(FLC.tSample))
+        yStarts = np.repeat(1.05, np.size(TC.chunkStarts))
+        yEnds = np.repeat(1.05, np.size(TC.chunkEnds))
+        
+        plt.scatter(FLC.tSample, yTimes, c=TC.chunkIDs, s=36, \
+                        cmap='flag')
+        
+        for iChunk in range(np.size(TC.chunkStarts)):
+            plt.plot(TC.chunkStarts[iChunk]*np.array([1.0, 1.0]), \
+                         [0.5, 1.5], color='g')
+            plt.plot(TC.chunkEnds[iChunk]*np.array([1.0, 1.0]), \
+                         [0.5, 1.5], color='r', ls='--')
+
+
+        plt.plot(TC.chunkStarts, yStarts, 'gs')
+        plt.plot(TC.chunkEnds, yEnds, 'rs')
+        plt.ylim(0.5,1.5)
+                           
+        # now plot the test array with and without the boolean
+        plt.plot(tRand[bRand], yRand[bRand], 'ko')
+        plt.plot(tRand[~bRand], yRand[~bRand]-0.005, marker='o', color='0.8', \
+                     ms=3, ls='None')
+
+        # also plot the joined dataset
+        plt.plot(tJoin[bJoin], yJoin[bJoin], 'ko')
+        plt.plot(tJoin[~bJoin], yJoin[~bJoin]-0.005, marker='o', color='0.8', \
+                     ms=3, ls='None')
+
+        return
+
+    else:
+        FLC.genSampleTimes(2000, mjdMax=6)
+
+    # Fake data to simiulate an "old" lightcurve
+    # FLC.genTemplateLightcurve()
+
+    # generate blank template for sampling with BPL, using the input times
     FLC.genBlankLC()
     FLC.blankLCfromArrays()
 

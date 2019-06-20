@@ -9,16 +9,11 @@
 # distribution as the Zurita et al. 2004 datasets to which we have
 # access.
 
-# 2019-06-19 4:30pm - to add: 
+# 2019-06-19 11:00 pm - to add: 
 #
-# (i)    read in new sampling lightcurve WITH GAPS
+# (i)  read in the Z04 lightcurve with ellipsoidals subtracted
 #
-# (ii) fill in the gaps with similar-sampling lightcurve (to demo the
-# underlying process even when we are missing data)
-#
-# (iii)  read in the Z04 lightcurve with ellipsoidals subtracted
-#
-# (iv) implement the figure of merit for lightcurve comparison
+# (ii) implement the figure of merit for lightcurve comparison
 
 import os, sys, time
 import numpy as np
@@ -33,14 +28,27 @@ class FakeLC(object):
 
     """Object to hold fake lightcurve parameters and samples"""
 
-    def __init__(self, psdModel='BendingPL'):
+    def __init__(self, filSamples='DIA2017.csv'):
 
         """INIT"""
 
         # power spectrum model
-        self.modelChoice = psdModel[:]
+        self.modelChoice = 'BendingPL'
         self.methPSD = DELCgen.BendingPL
         self.parseModelChoice()
+
+        # external file containing at least the times of observation
+        self.filSamples = filSamples[:]
+        self.keyObsTime = 'time' # from CJF's dia
+        self.keyObsFlux = 'flux' # placeholder
+        self.keyObsUnct = 'error' # placeholder
+        self.useObsFlux = False
+        self.useObsUncty = False
+        self.tSamplesFactor = 1.0/1440. # scale factor for time file
+
+        # time-chunks object for the observations
+        self.ChunksObs = None
+        self.minDtChunk = 0.01 # in days
 
         # the sample lightcurve
         self.tSample = np.array([])
@@ -75,9 +83,13 @@ class FakeLC(object):
         self.yTemplate = np.array([])
         self.eTemplate = np.array([])
 
+        # some default parameters
+        self.defaultUncty = 0.01
+        self.defaultMean = 16.
+
         # control parameters for sampled lightcurve
         self.sampleMean = 16.0
-        self.sampleStd = 0.2
+        self.sampleStd = 0.15
         self.sampleLen = 0
         self.sampleTbin = 100000 # make this large for fine sampling
 
@@ -85,6 +97,12 @@ class FakeLC(object):
         self.LCtemplate = None  # template from previous data
         self.LCblank = None  # blank lc for passing to Simulate_TK
         self.LCsample = None # the sampled lightcurve
+        self.LCobs = None # separate LC object for observations if
+                          # we're stacking this onto a longer blank
+
+        # boolean for objects in the output sample that actually
+        # correspond to observations
+        self.bObs = np.array([])
 
         # a few parameters for picking the red noise simulation length
         self.rnlMax=105
@@ -133,6 +151,115 @@ class FakeLC(object):
         """Creates fake times for sampling"""
 
         self.tSample = self.genFakeTimes(nData, mjdMin, mjdMax)
+
+    def lcObsFromFile(self):
+
+        """Imports observation lightcurve from file"""
+
+        self.LCobs = None
+        if not os.access(self.filSamples, os.R_OK):
+            if self.Verbose:
+                print("FakeLC.lcObsFromFile WARN - cannot read path %s" \
+                          % (self.filSamples))
+            return
+
+        tablObs = Table.read(self.filSamples)
+
+        if not self.keyObsTime in tablObs.colnames:
+            if self.Verbose:
+                print("FakeLC.lcObsFromFile WARN - time key not in table: %s" \
+                          % (self.keyObsTime))
+            return
+
+        # parse the observations table
+        tObs = tablObs[self.keyObsTime]*self.tSamplesFactor
+        
+        # default unctys to be replaced if appropriate
+        eObs = np.repeat(self.defaultUncty, np.size(tObs))
+        if self.useObsUncty and self.keyObsUnct in tObs.colnames:
+            eObs = tablObs[self.keyObsUnct]
+
+        yObs = np.random.normal(size=np.size(tObs))*eObs + self.defaultMean
+        if self.useObsFlux and self.keyObsFlux in tObs.colnames:
+            yObs = tObs[self.keyObsFlux]
+
+        # now we have the time, flux, error, create the "Obs"
+        # lightcurve object
+        self.LCobs = DELCgen.Lightcurve(tObs, yObs, self.sampleTbin, eObs)    
+
+    def findObsChunks(self):
+
+        """Finds the chunks in the LCobs object"""
+
+        try:
+            timesObs = self.LCobs.time
+        except:
+            if self.Verbose:
+                print("FakeLC.findObsChunks WARN - problem with LCobs.time")
+            return
+
+        self.ChunksObs = TimeChunks(timesObs, self.minDtChunk, runOnInit=True)
+
+    def buildOvertimes(self, tBuffer=0.5, nFac=5):
+
+        """Creates a hybrid lightcurve object, with the observed
+        sampling times meshed with a larger set of sampiing times that
+        fill the gaps.
+
+        tBuffer = number of days early and late to build the lightcurve
+
+        nFac = if > 50, the number of datapoints in the larger
+        list. Otherwise, the number of datapoints to simulate as a
+        multiple of the observation data-length
+
+        """
+
+        # find the minmax times for the larger dataset
+        try:
+            timesObs = self.LCobs.time
+            fluxObs =  self.LCobs.flux
+            unctyObs = self.LCobs.errors
+        except:
+            if self.Verbose:
+                print("FakeLC.buildOvertimes WARN - problem with LCobs.time")
+            return
+
+        tMin = np.min(timesObs) - tBuffer
+        tMax = np.max(timesObs) + tBuffer
+        
+        nSim = np.copy(nFac)
+        if nFac < 50:
+            nSim = np.size(timesObs)*nFac
+
+        # median uncty and y values, taken from the observation object
+        eMed = np.median(unctyObs)
+        yMed = np.median(fluxObs)
+
+        tLarge = np.linspace(tMin, tMax, nSim, endpoint=True)
+        eLarge = np.repeat(eMed, np.size(tLarge))
+        yLarge = np.random.normal(size=np.size(tLarge))*eLarge + yMed
+                           
+        # now fuse the large with the observations. We do this for the
+        # time, flux, error for both objects. 
+        bLargeInChunk = self.ChunksObs.timesInChunks(tLarge)
+
+        # now build the combined arrays and argsort by times
+        tCombo = np.hstack(( tLarge[~bLargeInChunk], timesObs ))
+        yCombo = np.hstack(( yLarge[~bLargeInChunk], fluxObs ))
+        eCombo = np.hstack(( eLarge[~bLargeInChunk], unctyObs ))
+        
+        lSor = np.argsort(tCombo)
+        
+        # pass this up to the blank LC object and set the chunk
+        # indices
+        self.LCblank = DELCgen.Lightcurve(tCombo[lSor], \
+                                              yCombo[lSor], \
+                                              tbin=self.sampleTbin, \
+                                              errors=eCombo[lSor])
+
+        # now we have this, set a boolean with the observations in the
+        # chunk
+        self.bObs = self.ChunksObs.timesInChunks(self.LCblank.time)
 
     def templateLCfromArrays(self):
 
@@ -227,6 +354,10 @@ class FakeLC(object):
                 length=self.LCblank.length, \
                 tbin=self.LCblank.tbin)
 
+        # interesting bug: the errors don't seem to be sent through to
+        # the simulated object. We'll graft them on here.
+        self.LCsample.errors = np.copy(self.LCblank.errors)
+
     def lsNoiseModel(self, clobberPer=False):
 
         """Convenience-method to draw the lomb-scargle on the current
@@ -253,7 +384,14 @@ class FakeLC(object):
         most speedy. Refactored a little from ASMLS.py developed for
         Dage et al. (2019 MNRAS)"""
 
-        if len(self.tSample) < 1:
+        nData = 0 
+        if len(self.tSample) > 1:
+            nData = np.size(self.tSample)
+        else:
+            if len(self.LCblank.time) > 1:
+                nData = np.size(self.LCblank.time)
+
+        if nData < 1:
             if self.Verbose:
                 print("FakeLC.pickRNLfactor WARN - sample times not yet set")
             return
@@ -268,7 +406,7 @@ class FakeLC(object):
 
         for iRNL in range(np.size(rnlVals)):
             thisRNL = rnlVals[iRNL]
-            tkLength = (thisRNL * np.size(self.tSample)) +1
+            tkLength = (thisRNL * nData) +1
             bigFacs[iRNL] = max(factorint(tkLength))
             tklens[iRNL] = tkLength
 
@@ -297,8 +435,7 @@ class FakeLC(object):
                                      np.log10(self.lsPmax), \
                                      self.lsNper, endpoint=True)
         
-
-    def showLC(self):
+    def showLC(self, figname='testLC.png'):
 
         """Debug routine - shows the simulated lightcurve"""
 
@@ -311,22 +448,77 @@ class FakeLC(object):
                 print("FakeLC.showLC WARN - problem getting the sampled arrays")
             return
 
+        # ensure a boolean is set corresponding to the actual
+        # observations. If we're not being clever and breaking this
+        # up, use all the objects.
+        bSho = self.bObs[:]
+        if len(bSho) < 1:
+            bSho = np.repeat(True, np.size(tSampl))
+
+        # calculate the lomb scargle here
+        if np.size(self.lsPer) < 1:
+            self.setupLombScargle()
+            
+        # compute the lomb-scargle both in and out of observation
+        lsFreq = 1.0/self.lsPer
+        lsSho = LombScargle(tSampl[bSho], ySampl[bSho], \
+                                eSampl[bSho]).power(lsFreq)
+
+        # do the Lomb-Scargle for all the points
+        lsAll = LombScargle(tSampl, ySampl, \
+                                eSampl).power(lsFreq)
+
+        # set colors upfront
+        colorSho = 'k'
+        colorOut = '0.5'
+
         fig1 = plt.figure(1)
         fig1.clf()
-        ax1 = fig1.add_subplot(211)
 
-        dumScatt = ax1.errorbar(tSampl, ySampl, yerr=eSampl, ls='none', \
-                                    ms=2, alpha=0.5, marker='o', zorder=2)
-        dumPlot = ax1.plot(tSampl, ySampl, alpha=0.15, zorder=1, c='b')
+        fig1.subplots_adjust(hspace=0.3)
+
+        ax1 = fig1.add_subplot(211)
+        
+        dumScatt = ax1.errorbar(tSampl[bSho], ySampl[bSho], \
+                                    yerr=eSampl[bSho], ls='none', \
+                                    ms=0.5, alpha=0.5, marker='o', zorder=2, \
+                                    color=colorSho, ecolor=colorSho)
+
+        dumOut = ax1.errorbar(tSampl[~bSho], ySampl[~bSho], \
+                                  yerr=eSampl[~bSho], ls='none', \
+                                  ms=0.5, alpha=0.5, marker='o', zorder=2, \
+                                  color=colorOut, ecolor=colorOut)
+
+
+        #dumPlot = ax1.plot(tSampl, ySampl, alpha=0.15, zorder=1, c='b')
         ax1.set_xlabel('MJD')
         ax1.set_ylabel('Flux')
 
-        # now show the LS of this sample
-        ax2 = fig1.add_subplot(212)
-        dumLS = ax2.loglog(self.lsPer, self.lsPow)
+        # now show the LS of this sample. We might or might not use
+        # two panels for this...
+        if np.sum(~bSho) < 1:
+            ax2 = fig1.add_subplot(212)
+        else:
+            ax2 = fig1.add_subplot(223)
+
+        # do the LS for the "observations"
+        dumLS = ax2.loglog(self.lsPer, lsSho, color=colorSho, \
+                               lw=1)
         ax2.set_xlabel('Period (d)')
         ax2.set_ylabel('LS power')
         ax2.set_xlim(self.lsPmin, self.lsPmax)
+
+        # if the entire observation set is different, plot that too.
+        if np.size(lsAll) > 0:
+            ax3 = fig1.add_subplot(224, sharey=ax2)
+            dumLS3 = ax3.loglog(self.lsPer, lsAll, color=colorOut, \
+                                    lw=1)
+            ax3.set_xlabel('Period (d)')
+            #ax3.set_ylabel('LS power')
+            ax3.set_xlim(self.lsPmin, self.lsPmax)
+
+        # save the figure to disk
+        fig1.savefig(figname, rasterized=False)
 
 class TimeChunks(object):
 
@@ -514,3 +706,27 @@ def testDirect(filIn='lc92raw.txt', yStd=0.05, tBin=1e4):
 
     print lcData.psdFit
     print lcData.psdModel
+
+
+def testCombinedSample():
+
+    """Tests building a combined sample with observations and a wider
+    time baseline to distinguish observations from the wider
+    sample."""
+
+    FLC = FakeLC('DIA2017.csv')
+    FLC.lcObsFromFile()
+    FLC.findObsChunks()
+    FLC.buildOvertimes()
+
+    # since we now have a larger sample, we don't need such a large
+    # RNLfactor. Use a smaller range.
+    #FLC.rnlMin=10
+    #FLC.rnlMax=20
+    FLC.pickRNLfactor()
+    
+    # Sample the noise model...
+    FLC.sampleNoiseModel()
+    
+    # ... and show the lightcurve
+    FLC.showLC()

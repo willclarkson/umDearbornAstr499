@@ -954,6 +954,8 @@ def testCombinedSample(nTrials=1, gapMin=0.7):
     aFoms = np.array([])
     for iTrial in range(nTrials):
 
+        # report progress to screen, since the simulations might be
+        # slow-ish...
         if iTrial % nReport < 1 and iTrial > 0:
             sys.stdout.write("\r testCombinedSample INFO - on trial %i of %i" \
                                  % (iTrial, nTrials))

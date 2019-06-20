@@ -9,11 +9,14 @@
 # distribution as the Zurita et al. 2004 datasets to which we have
 # access.
 
-# 2019-06-19 11:00 pm - to add: 
+# 2019-06-20 3:30 pm - to add: 
 #
 # (i)  read in the Z04 lightcurve with ellipsoidals subtracted
 #
 # (ii) implement the figure of merit for lightcurve comparison
+#
+# (iii) Decide which FoM to use, decide what to do with the bucket of simulations
+
 
 import os, sys, time
 import numpy as np
@@ -530,7 +533,11 @@ class TimeChunks(object):
         self.chunkMin=chunkMin
         self.times = np.copy(times)
 
+        # the chunk ID for each datapoint
         self.chunkIDs = np.array([])
+
+        # the list of unique chunk IDs
+        self.uniqueIDs = np.array([])
 
         if runOnInit:
             self.findChunks()
@@ -553,7 +560,7 @@ class TimeChunks(object):
     def assignChunkIDs(self):
 
         """Assign every point to a chunk"""
-    
+
         self.chunkIDs = np.repeat(0, np.size(self.times))
         for iChunk in range(np.size(self.chunkStarts)):
 
@@ -563,6 +570,10 @@ class TimeChunks(object):
             bChunk = bChunkAbove & bChunkBelow
                                   
             self.chunkIDs[bChunk] = iChunk
+
+            # we grow the unique IDs array even though we probably
+            # could just build it once and be done with it...
+            self.uniqueIDs = np.hstack(( self.uniqueIDs, iChunk ))
 
     def timesInChunks(self, tTest=np.array([])):
 
@@ -594,7 +605,206 @@ class TimeChunks(object):
         # with the times in the chunks, then sorting by time
         tCombo = np.hstack((tInpu[~bInChunk], self.times))
         return np.sort(tCombo)
-            
+     
+class FoMSet(object):
+
+    """Properties and methods for determining the figure of merit on
+    an input simulation, including the ability to break up the dataset
+    into nights. 
+
+    """
+
+    def __init__(self, LCobj=None, bObs=np.array([]), gapMin=999., \
+                     parseOnInit=True):
+
+        self.LCobj = LCobj
+        self.bObs = np.copy(bObs)
+        
+        # make the time, flux, uncty into separate arrays (from the
+        # LCobj) so that we can populate them directly from a calling
+        # array if necessary.
+
+        # First the full set...
+        self.tFull = np.array([])
+        self.yFull = np.array([])
+        self.eFull = np.array([])
+        
+        # then the subset that will pass the bObs boolean
+        self.tObs = np.array([])
+        self.yObs = np.array([])
+        self.eObs = np.array([])
+
+        # Data Chunks object, minimum time-gap between chunks
+        self.chunks = None
+        self.gapMin = gapMin
+
+        # list of figure of merit objects, array of fom values
+        self.aFoms = np.array([])
+        self.lFoms = []
+
+        # control variable
+        self.Verbose=True
+
+        # setup operations based on input arguments
+        if parseOnInit:
+            self.unpackLCobj()
+            self.checkObsBoolean()
+            self.extractObservedData()
+            self.partitionIntoChunks()
+            self.initFomHolders()
+
+    def unpackLCobj(self):
+
+        """Unpacks the LC object into time, flux, error arrays"""
+
+        try:
+            self.tFull = np.copy(self.LCobj.time)
+            self.yFull = np.copy(self.LCobj.flux)
+            self.eFull = np.copy(self.LCobj.errors)
+        except:
+            if self.Verbose:
+                print("FomSet.unpackLCobj WARN - problem unpacking LC object")
+            return
+
+    def checkObsBoolean(self):
+
+        """Ensure that the observation boolean is compatible with the
+        dataset"""
+        
+        # I'm on the fence about whether this conditional is
+        # necessary. If the tObs has not yet been set, then we can
+        # easily generate the bObs to match it and deal with the
+        # zero-size data elsewhere.
+        if np.size(self.tFull) < 1:
+            if self.Verbose:
+                print("FomSet.checkObsBoolean WARN - times array not populated")
+            return
+        
+        # This one, however, is the key function of this method.
+        if np.size(self.bObs) <> np.size(self.tFull):
+            if self.Verbose:
+                print("FomSet.checkObsBoolean WARN - boolean size mismatch to times.")
+                print("FomSet.checkObsBoolean WARN - will use all input datapoints.")
+            self.bObs = np.repeat(True, np.size(self.tFull))
+
+    def extractObservedData(self):
+
+        """Selects only the 'observed' data using supplied boolean"""
+
+        self.tObs = self.tFull[self.bObs]
+        self.yObs = self.yFull[self.bObs]
+        self.eObs = self.eFull[self.bObs]
+
+    def partitionIntoChunks(self):
+
+        """Partitions the dataset into chunks"""
+        
+        self.chunks = TimeChunks(self.tObs, self.gapMin, runOnInit=True)
+
+    def initFomHolders(self):
+
+        """Sets up a list of figure of merit objects, and an array of
+        statistics"""
+
+        nChunks = np.size(self.chunks.uniqueIDs)
+        self.aFoms = np.repeat(-99., nChunks)
+        self.lFoms = [None for i in range(nChunks)]
+
+    def evaluateFoMs(self):
+
+        """Evaluates the figure of merit for each chunk in turn."""
+
+        # WATCHOUT for future index debugging - notice that this requires
+        # the tObs, yObs, eObs arrays, NOT the tFull, yFull, eFull
+        # arrays.
+
+        for iChunk in range(np.size(self.chunks.uniqueIDs)):
+            thisID = self.chunks.uniqueIDs[iChunk]
+            bChunk = self.chunks.chunkIDs == thisID
+
+            # we'll do this in pieces to clarify the operation of the
+            # FoM object
+            thisFom = FoM(self.tObs[bChunk], \
+                              self.yObs[bChunk], \
+                              self.eObs[bChunk], \
+                              runOnInit=False)
+
+            thisFom.chunkID = thisID
+            thisFom.calcFoM()
+
+            # 2019-06-20 - debug statement to fix a method-location problem
+            # print("DEBUG:", iChunk, thisID, np.sum(bChunk), thisFom.fomStat)
+
+            # now we update the list of FoM objects with this FoM and
+            # pass the statistic to the holding array
+            self.lFoms[iChunk] = thisFom
+            self.aFoms[iChunk] = thisFom.fomStat
+
+class FoM(object):
+
+    """Figure of merit object for a single data chunk"""
+                      
+    def __init__(self, tObs=np.array([]), yObs=np.array([]), \
+                     eObs=np.array([]), choiceFom='simpleStd', \
+                     runOnInit=False, chunkID=0):
+
+        """Figure of merit object for a single dataset, optionally
+        with measurement uncertainties"""
+
+        # for convenience, we allow an identifier for which chunk this is
+        self.chunkID = chunkID
+
+        # For future compatibility, we include arrays for the
+        # uncertainty and the time as well as the flux values (e.g. we
+        # might decide to perform an LS and record the slope of the
+        # power law...)
+        self.tObs = np.copy(tObs)
+        self.yObs = np.copy(yObs)
+        self.eObs = np.copy(eObs)
+        
+        self.fomStat = -99.
+
+        # choice of FoM (check that it actually works on np arrays)
+        self.choiceFom = choiceFom
+        self.setMethFom()  
+
+        # verbose?
+        self.Verbose = True
+
+        if runOnInit:
+            self.setMethFom()
+            self.calcFom()
+
+    def setMethFom(self):
+
+        """Sets the figure of merit to calculate"""
+
+        choiceFom = self.choiceFom[:]
+        choiceDefault = 'simpleStd'
+        if not hasattr(self, self.choiceFom):
+            if self.Verbose:
+                print("FoM.checkMethFom WARN - requested FoM method not found")
+                print("FoM.checkMethFom WARN - defaulting to %s" \
+                          % (choiceDefault))
+            choiceFom = choiceDefault[:]
+
+        self.methFom = getattr(self, choiceFom)
+
+    def calcFoM(self):
+
+        """Calculates the figure of merit on the input dataset.
+        """
+
+        self.methFom()
+        
+        # 2019-06-20 WIC - I'm wondering if this even needs a method,
+        # since we already set the reference in setMethFom!
+
+    def simpleStd(self):
+
+        """Computes the standard deviation of the input data"""
+
+        self.fomStat = np.std(self.yObs)
 
 def testFakeLC(sampleFil=''):
 
@@ -708,11 +918,17 @@ def testDirect(filIn='lc92raw.txt', yStd=0.05, tBin=1e4):
     print lcData.psdModel
 
 
-def testCombinedSample():
+def testCombinedSample(nTrials=1, gapMin=0.7):
 
     """Tests building a combined sample with observations and a wider
     time baseline to distinguish observations from the wider
-    sample."""
+    sample.
+
+    nTrials = number of trials to run
+
+    gapMin = minimum gap between "nights" in the observed dataset. Set
+    to a large number to use all the data in a single chunk.
+    """
 
     FLC = FakeLC('DIA2017.csv')
     FLC.lcObsFromFile()
@@ -725,8 +941,44 @@ def testCombinedSample():
     #FLC.rnlMax=20
     FLC.pickRNLfactor()
     
-    # Sample the noise model...
-    FLC.sampleNoiseModel()
+    ### 2019-06-20 all the material below could be refactored into a
+    ### new class that just holds the simulation set... what do we
+    ### think?
+
+    # At this point we're ready to run our simulation set. Now we
+    # generate an array for holding the big set of figures of merit
+
+    # reporting interval (since I'm an impatient user)
+    nReport = 5
+
+    aFoms = np.array([])
+    for iTrial in range(nTrials):
+
+        if iTrial % nReport < 1 and iTrial > 0:
+            sys.stdout.write("\r testCombinedSample INFO - on trial %i of %i" \
+                                 % (iTrial, nTrials))
+            sys.stdout.flush()
+
+        # Sample the noise model...
+        FLC.sampleNoiseModel()
     
-    # ... and show the lightcurve
-    FLC.showLC()
+        # ... and show the lightcurve (just do this once)
+        if iTrial < 1:
+            print("testCombinedSample INFO - plotting trial %i..." \
+                      % (iTrial))
+            FLC.showLC()
+            print("testCombinedSample INFO - done.")
+
+        # test the FomSet object for the figures of merit
+        FS = FoMSet(FLC.LCsample, FLC.bObs, gapMin=gapMin)
+        FS.evaluateFoMs()
+    
+        # if we haven't built the fom array yet, copy it from the
+        # first instance
+        if np.size(aFoms) < 1:
+            aFoms = np.copy(FS.aFoms)
+        else:
+            aFoms = np.vstack(( aFoms, FS.aFoms ))
+
+    print np.shape(aFoms)
+    print aFoms[0]

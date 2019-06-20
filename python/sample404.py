@@ -16,6 +16,11 @@
 # (ii) implement the figure of merit for lightcurve comparison
 #
 # (iii) Decide which FoM to use, decide what to do with the bucket of simulations
+#
+# (iv) test the case when we're NOT simulating the gaps as well as the
+# observed data. Based on the way this was built, just passing no
+# boolean to the FomSet object should cause the whole thing to be used
+# as a matter of course.
 
 
 import os, sys, time

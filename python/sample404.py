@@ -475,13 +475,13 @@ class FakeLC(object):
         fig1 = plt.figure(1)
         fig1.clf()
 
-        fig1.subplots_adjust(hspace=0.3)
+        fig1.subplots_adjust(hspace=0.35)
 
         ax1 = fig1.add_subplot(211)
         
         dumScatt = ax1.errorbar(tSampl[bSho], ySampl[bSho], \
                                     yerr=eSampl[bSho], ls='none', \
-                                    ms=0.5, alpha=0.5, marker='o', zorder=2, \
+                                    ms=1, alpha=0.5, marker='o', zorder=2, \
                                     color=colorSho, ecolor=colorSho)
 
         dumOut = ax1.errorbar(tSampl[~bSho], ySampl[~bSho], \
@@ -491,7 +491,7 @@ class FakeLC(object):
 
 
         #dumPlot = ax1.plot(tSampl, ySampl, alpha=0.15, zorder=1, c='b')
-        ax1.set_xlabel('MJD')
+        ax1.set_xlabel('MJD (d)')
         ax1.set_ylabel('Flux')
 
         # now show the LS of this sample. We might or might not use

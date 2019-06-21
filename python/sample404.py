@@ -867,13 +867,18 @@ class FoM(object):
 
 def binData(tIn=np.array([]), yIn=np.array([]), \
                 nBins=100, nMin=2, \
-                eIn=np.array([])):
+                eIn=np.array([]), \
+                useMedian=False):
 #, \
 #                logBins=False):
 
     """Bin time, rate, optionally uncertainty. Slow but robust. Uses
     nBins to specify the binning so that log-spaced binning is
-    straightforward."""
+    straightforward to implement if needed.
+
+    useMedian = use the median (and std for uncertainty)
+
+    """
 
     # lower and upper ranges for bins
     tMin = np.min(tIn)
@@ -915,14 +920,22 @@ def binData(tIn=np.array([]), yIn=np.array([]), \
         # differs from the two cases (if errors not given, every point
         # is given equal weight).
 
-        sumWgts = np.sum(wgts[bThis])
-        tBin[iBin] = np.sum(tIn[bThis]*wgts[bThis])/sumWgts
-        yBin[iBin] = np.sum(yIn[bThis]*wgts[bThis])/sumWgts
 
-        if np.size(eIn) > 0:
-            eBin[iBin] = np.sqrt(1.0/sumWgts)
+        if useMedian:
+            tBin[iBin] = np.median(tIn[bThis])
+            yBin[iBin] = np.median(yIn[bThis])
         else:
+            sumWgts = np.sum(wgts[bThis])
+            tBin[iBin] = np.sum(tIn[bThis]*wgts[bThis])/sumWgts
+            yBin[iBin] = np.sum(yIn[bThis]*wgts[bThis])/sumWgts
+
+        # if no errors provided OR using the median, return the stddev
+        if np.size(eIn) <> np.size(tIn) or useMedian:
             eBin[iBin] = np.std(yIn[bThis])
+        else:
+            # if we have uncertainties, use the variance of the
+            # inverse-variance-weighted average.
+            eBin[iBin] = np.sqrt(1.0/sumWgts)
 
     # only return the complete bins
     return tBin[bBin], yBin[bBin], eBin[bBin]

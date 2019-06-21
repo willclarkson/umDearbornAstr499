@@ -883,7 +883,7 @@ def binData(tIn=np.array([]), yIn=np.array([]), \
 
     for iBin in range(nBins):
         
-        bThis = (tIn >= tLos[iBin]) & (tIn <= tHis[iBin])
+        bThis = (tIn >= tLos[iBin]) & (tIn < tHis[iBin])
         nThis = np.sum(bThis)
         if nThis < nMin:
             continue

@@ -514,6 +514,13 @@ class FakeLC(object):
         lsAll = LombScargle(tSampl, ySampl, \
                                 eSampl).power(lsFreq)
 
+        # log-bin them
+        nBin = 10
+        logShoPer, logShoPow, _ = binData(np.log10(self.lsPer), \
+                                              np.log10(lsSho), nBin)
+        logAllPer, logAllPow, _ = binData(np.log10(self.lsPer), \
+                                              np.log10(lsAll), nBin)
+
         # set colors upfront
         colorSho = 'k'
         colorOut = '0.5'
@@ -554,6 +561,10 @@ class FakeLC(object):
         ax2.set_ylabel('LS power')
         ax2.set_xlim(self.lsPmin, self.lsPmax)
 
+        # overplot the binned LS
+        dumBin = ax2.loglog(10.0**logShoPer, 10.0**logShoPow, 'r-', \
+                                zorder=5)
+
         # if the entire observation set is different, plot that too.
         if np.size(lsAll) > 0:
             ax3 = fig1.add_subplot(224, sharey=ax2)
@@ -562,6 +573,11 @@ class FakeLC(object):
             ax3.set_xlabel('Period (d)')
             #ax3.set_ylabel('LS power')
             ax3.set_xlim(self.lsPmin, self.lsPmax)
+
+        # overplot the binned LS
+            dumBin = ax3.loglog(10.0**logAllPer, 10.0**logAllPow, 'r-', \
+                                    zorder=5)
+
 
         # save the figure to disk
         fig1.savefig(figname, rasterized=False)
@@ -863,7 +879,7 @@ def binData(tIn=np.array([]), yIn=np.array([]), \
     tMin = np.min(tIn)
     tMax = np.max(tIn)
 
-    xAll = np.linspace(tMin, tMax, nBins, endpoint=True)
+    xAll = np.linspace(tMin, tMax, nBins+1, endpoint=True)
     #if logBins:
     #    xAll = np.logspace(np.log10(tMin), np.log10(tMax), nBins, \
     #                           endpoint=True)
@@ -879,10 +895,13 @@ def binData(tIn=np.array([]), yIn=np.array([]), \
     tBin = np.zeros(nBins)
     yBin = np.copy(tBin)
     eBin = np.copy(tBin)
-    bBin = np.repeat(False, nBin)
+    bBin = np.repeat(False, nBins)
 
     for iBin in range(nBins):
         
+        #tMin = tLos[iBin]
+        #tMax = tHis[iBin]
+
         bThis = (tIn >= tLos[iBin]) & (tIn < tHis[iBin])
         nThis = np.sum(bThis)
         if nThis < nMin:

@@ -849,6 +849,65 @@ class FoM(object):
 
         self.fomStat = np.std(self.yObs)
 
+def binData(tIn=np.array([]), yIn=np.array([]), \
+                nBins=100, nMin=2, \
+                eIn=np.array([])):
+#, \
+#                logBins=False):
+
+    """Bin time, rate, optionally uncertainty. Slow but robust. Uses
+    nBins to specify the binning so that log-spaced binning is
+    straightforward."""
+
+    # lower and upper ranges for bins
+    tMin = np.min(tIn)
+    tMax = np.max(tIn)
+
+    xAll = np.linspace(tMin, tMax, nBins, endpoint=True)
+    #if logBins:
+    #    xAll = np.logspace(np.log10(tMin), np.log10(tMax), nBins, \
+    #                           endpoint=True)
+    tLos = xAll[0:-1]
+    tHis = xAll[1::]
+
+    # weights if input errors set
+    wgts = yIn*0.0 + 1.0
+    if np.size(eIn) > 0:
+        wgts = 1.0/eIn**2
+
+    # Initialize the output bins
+    tBin = np.zeros(nBins)
+    yBin = np.copy(tBin)
+    eBin = np.copy(tBin)
+    bBin = np.repeat(False, nBin)
+
+    for iBin in range(nBins):
+        
+        bThis = (tIn >= tLos[iBin]) & (tIn <= tHis[iBin])
+        nThis = np.sum(bThis)
+        if nThis < nMin:
+            continue
+
+        bBin[iBin] = True
+
+        # If uncertainties are given, use inverse-variance weights and
+        # find the optimal average and its variance. Otherwise, use
+        # the straight average and stddev. Only the uncertainty
+        # differs from the two cases (if errors not given, every point
+        # is given equal weight).
+
+        sumWgts = np.sum(wgts[bThis])
+        tBin[iBin] = np.sum(tIn[bThis]*wgts[bThis])/sumWgts
+        yBin[iBin] = np.sum(yIn[bThis]*wgts[bThis])/sumWgts
+
+        if np.size(eIn) > 0:
+            eBin[iBin] = np.sqrt(1.0/sumWgts)
+        else:
+            eBin[iBin] = np.std(yIn[bThis])
+
+    # only return the complete bins
+    return tBin[bBin], yBin[bBin], eBin[bBin]
+
 def testFakeLC(sampleFil=''):
 
     """Tests the functionality of the fake lc generator"""

@@ -33,6 +33,9 @@ from astropy.stats import LombScargle # for characterization
 from sympy import factorint
 import DELCgen
 
+# for dumping the array of trial statistics to disk
+from astropy.io import fits 
+
 class FakeLC(object):
 
     """Object to hold fake lightcurve parameters and samples"""
@@ -517,9 +520,11 @@ class FakeLC(object):
         # log-bin them
         nBin = 10
         logShoPer, logShoPow, _ = binData(np.log10(self.lsPer), \
-                                              np.log10(lsSho), nBin)
+                                              np.log10(lsSho), nBin, \
+                                              useMedian=True)
         logAllPer, logAllPow, _ = binData(np.log10(self.lsPer), \
-                                              np.log10(lsAll), nBin)
+                                              np.log10(lsAll), nBin, \
+                                              useMedian=True)
 
         # set colors upfront
         colorSho = 'k'
@@ -581,6 +586,98 @@ class FakeLC(object):
 
         # save the figure to disk
         fig1.savefig(figname, rasterized=False)
+
+    def wrapPrepSims(self):
+
+        """Convenience-wrapper to prepare simulations"""
+
+        # Customization arguments to be added!
+
+        # template lightcurve (to extract the stddev for the
+        # simulation)
+        self.lcTemplateFromFile()
+        self.getTemplateStats()
+
+        # output sampling including gaps
+        self.lcObsFromFile()
+        self.findObsChunks()
+        self.buildOvertimes()
+    
+        # pick red noise factor
+        self.pickRNLfactor()
+
+class TrialSet(object):
+
+    """Convenience objet to hold a series of trials"""
+
+    def __init__(self, nTrials=1, FakeTrial=None, \
+                     filStats='tmp_trialStats.fits', \
+                     nReport = 5, gapMin=999):
+
+        self.nTrials = nTrials
+        
+        # array of trial statistics
+        self.aStats = np.array([])
+
+        # output file for statistics (fits is convenient because we
+        # can attach a header)
+        self.filStats = filStats[:]
+        
+        # the object holding the fake trial and methods
+        self.FakeTrial = FakeTrial
+
+        # report to screen every nReport trials
+        self.nReport = nReport
+
+        # min gap for chunking each fake set
+        self.gapMin = gapMin
+
+    def doTrials(self):
+
+        """Does the trials"""
+
+        self.aStats = np.array([])
+        for iTrial in range(self.nTrials):
+            if iTrial % self.nReport and iTrial > 0:
+                sys.stdout.write("\r TrialSet.doTrials INFO - trial %i of %i" \
+                                     % (iTrial, self.nTrials))
+                sys.stdout.flush()
+
+                self.FakeTrial.sampleNoiseModel()
+                
+                if iTrial < 1:
+                    print("TrialSet.doTrials INFO - plotting %i..." \
+                              % (iTrial))
+                    self.FakeTrial.showLC()
+                    print("... done.")
+
+                FS = FoMSet(self.FakeTrial.LCsample, self.FakeTrial.bObs, \
+                                gapMin=self.gapMin)
+                FS.evaluateFoMs()
+
+                # pass up to the instance
+                if np.size(self.aStats) < 1:
+                    self.aStats = np.copy(FS.aFoms)
+                else:
+                    self.aStats = np.vstack(( self.aStats, FS.aFoms ))
+
+    def writeTrials(self):
+
+        """Writes the trialset to disk"""
+
+        if len(self.filStats) < 2:
+            return
+
+        # populate the header with some keyword arguments
+        hdr = fits.Header()
+        hdr['nTrials'] = self.nTrials
+        hdr['gapMin'] = self.gapMin
+
+        # could write various values of the FakeTrial object here too...
+        if os.access(self.filStats, os.W_OK):
+            os.remove(self.filStats)
+            
+        fits.writeto(self.filStats, self.aStats, header=hdr)
 
 class TimeChunks(object):
 
@@ -1125,3 +1222,17 @@ def testCombinedSample(nTrials=1, gapMin=0.7):
 
     print np.shape(aFoms)
     print aFoms[0]
+
+def testCompact(nTrials=1, gapMin=0.7, \
+                    filObstimes='DIA2017.csv', \
+                    filTemplate='92Binned.fits'):
+
+    """As testCombinedSample, but with a compacted instrution set"""
+
+    FLC = FakeLC(filSamples=filObstimes, filTemplate=filTemplate)
+    FLC.wrapPrepSims()
+
+    # now use an instance of our TrialSet class to run the iterations
+    TS = TrialSet(nTrials, FakeTrial=FLC, gapMin=gapMin)
+    TS.doTrials()
+    TS.writeTrials()

@@ -26,6 +26,7 @@
 import os, sys, time
 import numpy as np
 import matplotlib.pylab as plt
+plt.style.use('ggplot') # could put this into the object
 
 from astropy.table import Table
 from astropy.stats import LombScargle # for characterization
@@ -36,16 +37,19 @@ class FakeLC(object):
 
     """Object to hold fake lightcurve parameters and samples"""
 
-    def __init__(self, filSamples='DIA2017.csv'):
-
-        """INIT"""
+    def __init__(self, filSamples='DIA2017.csv', \
+                     filTemplate='92Binned.fits'):
 
         # power spectrum model
         self.modelChoice = 'BendingPL'
         self.methPSD = DELCgen.BendingPL
         self.parseModelChoice()
 
-        # external file containing at least the times of observation
+        # optional file containing prior observations we want to
+        # reproduce
+        self.filTemplate = filTemplate[:]
+
+        # optional file containing at least the times of observation
         self.filSamples = filSamples[:]
         self.keyObsTime = 'time' # from CJF's dia
         self.keyObsFlux = 'flux' # placeholder
@@ -159,6 +163,31 @@ class FakeLC(object):
         """Creates fake times for sampling"""
 
         self.tSample = self.genFakeTimes(nData, mjdMin, mjdMax)
+
+    def lcTemplateFromFile(self):
+
+        """Populates template arrays and lightcurve object from
+        file"""
+
+        # This may duplicate functionality in lcObsFromFile, might
+        # want to refactor this later.
+        if not os.access(self.filTemplate, os.R_OK):
+            if self.Verbose:
+                print("FakeLC.lcTemplateFromFile WARN - cannot read path %s" \
+                          % (self.filTemplate))
+            return
+
+        tTempl = Table.read(self.filTemplate)
+
+        # transfer the data to the separate arrays and to the
+        # LCtemplate object
+        self.tTemplate = tTempl['tBin']
+        self.yTemplate = tTempl['fBin']
+        self.eTemplate = tTempl['uBin']
+
+        self.LCtemplate = DELCgen.Lightcurve(\
+            self.tTemplate, self.yTemplate, self.sampleTbin, self.eTemplate)    
+        
 
     def lcObsFromFile(self):
 
@@ -322,14 +351,23 @@ class FakeLC(object):
         
         return np.sort(np.random.uniform(size=nData, low=mjdMin, high=mjdMax))
 
-    def getStatsFromTemplate(self):
+    def getTemplateStats(self):
 
         """Get the statistics for the sample lightcurve from the
         template object"""
 
-        self.sampleMean = self.LCtemplate.mean
-        self.sampleStd = self.LCtemplate.std
-        self.sampleLen = self.LCtemplate.length
+        try:
+            self.sampleMean = self.LCtemplate.mean
+            self.sampleStd = self.LCtemplate.std
+            # self.sampleLen = self.LCtemplate.length
+        except:
+            if self.Verbose:
+                print("FakeLC.getTemplateStats WARN - LCtemplate problem")
+            return
+
+        # report the stats found to terminal
+        if self.Verbose:
+            print("FakeLC.getTemplateStats INFO - template mean %.2f, stddev %.3f" % (self.sampleMean, self.sampleStd))
 
     def parseModelChoice(self):
 
@@ -936,6 +974,13 @@ def testCombinedSample(nTrials=1, gapMin=0.7):
     """
 
     FLC = FakeLC('DIA2017.csv')
+
+    # Use the previous file (if readable) for the broad statistics for
+    # the simulation
+    FLC.lcTemplateFromFile()
+    FLC.getTemplateStats()
+
+    # set up the sampling, including the gaps
     FLC.lcObsFromFile()
     FLC.findObsChunks()
     FLC.buildOvertimes()

@@ -804,7 +804,8 @@ class TrialSet(object):
 
     def __init__(self, nTrials=1, FakeTrial=None, \
                      filStats='tmp_trialStats.fits', \
-                     nReport = 5, gapMin=999):
+                     nReport = 5, gapMin=999, \
+                     doDetrend=False, detDeg=0):
 
         self.nTrials = nTrials
         
@@ -827,6 +828,10 @@ class TrialSet(object):
         # min gap for chunking each fake set
         self.gapMin = gapMin
         self.gapAll = 999 # default gap for the entire dataset
+
+        # Detrending information
+        self.doDetrend = doDetrend
+        self.detDeg = detDeg
 
         # *name* of the method used as figure of merit
         self.nameFomUsed = 'BLANK' # easily-recognizable default
@@ -874,6 +879,8 @@ class TrialSet(object):
             FSall = FoMSet(self.FakeTrial.LCsample, \
                                self.FakeTrial.bObs, \
                                gapMin=self.gapAll, \
+                               doDetrend=self.doDetrend, \
+                               detDeg=self.detDeg, \
                                runOnInit=True)
             self.aStatsAll = self.accumArrays(self.aStatsAll, FSall.aFoms)
 
@@ -881,15 +888,18 @@ class TrialSet(object):
                 FS = FoMSet(self.FakeTrial.LCsample, \
                                 self.FakeTrial.bObs, \
                                 gapMin=self.gapMin, \
+                                doDetrend=self.doDetrend, \
+                                detDeg=self.detDeg, \
                                 runOnInit=True)
                 self.aStats = self.accumArrays(self.aStats, FS.aFoms)
                 
-
         # get the name of the method used for the fom (we might
         # normally specify this here too, but this way we read even if
         # the default was used)
         #self.nameFomUsed = FS.lFoms[0].methFom.__name__
         self.nameFomUsed = FSall.nameFoM
+        self.doDetrend = FSall.lFoms[0].detrend
+        self.detDeg = FSall.lFoms[0].detDeg
 
     def parsToHeader(self):
 
@@ -947,6 +957,13 @@ class TrialSet(object):
                                   "Reference apparent mag")
         self.hdr['refFlux'] = (self.FakeTrial.LCsample.refFlux, \
                                    "Reference flux")
+
+        # Was detrending done?
+        self.hdr['detrend'] = (self.doDetrend, \
+                                   "Samples detrended before evaluating FoM")
+        if self.doDetrend:
+            self.hdr['detDeg'] = (self.detDeg, \
+                                      "Detrending factor for samples")
 
     def writeTrials(self):
 
@@ -1086,7 +1103,8 @@ class FoMSet(object):
     """
 
     def __init__(self, LCobj=None, bObs=np.array([]), gapMin=999., \
-                     parseOnInit=True, runOnInit=True):
+                     parseOnInit=True, runOnInit=True, \
+                     doDetrend=False, detDeg=0):
 
         self.LCobj = LCobj
         self.bObs = np.copy(bObs)
@@ -1118,6 +1136,10 @@ class FoMSet(object):
 
         # record of the FoM name used
         self.nameFoM='np.std'
+
+        # detrending information for FoM
+        self.doDetrend = doDetrend
+        self.detDeg = detDeg
 
         # setup operations based on input arguments
         if parseOnInit:
@@ -1204,6 +1226,8 @@ class FoMSet(object):
             thisFom = FoM(self.tObs[bChunk], \
                               self.yObs[bChunk], \
                               self.eObs[bChunk], \
+                              detrend=self.doDetrend, \
+                              detDeg = self.detDeg, \
                               runOnInit=False)
 
             thisFom.chunkID = thisID
@@ -1226,7 +1250,8 @@ class FoM(object):
                       
     def __init__(self, tObs=np.array([]), yObs=np.array([]), \
                      eObs=np.array([]), choiceFom='simpleStd', \
-                     runOnInit=False, chunkID=0):
+                     runOnInit=False, chunkID=0, \
+                     detrend=False, detDeg=0):
 
         """Figure of merit object for a single dataset, optionally
         with measurement uncertainties"""
@@ -1234,15 +1259,17 @@ class FoM(object):
         # for convenience, we allow an identifier for which chunk this is
         self.chunkID = chunkID
 
-        # For future compatibility, we include arrays for the
-        # uncertainty and the time as well as the flux values (e.g. we
-        # might decide to perform an LS and record the slope of the
-        # power law...)
+        # Make copies of the input arrays to avoid circular references
+        # or accidentally altering the input arrays themselves.
         self.tObs = np.copy(tObs)
         self.yObs = np.copy(yObs)
         self.eObs = np.copy(eObs)
         
         self.fomStat = -99.
+
+        # doing the detrending?
+        self.detrend = detrend
+        self.detDeg = detDeg
 
         # choice of FoM (check that it actually works on np arrays)
         self.choiceFom = choiceFom
@@ -1252,6 +1279,7 @@ class FoM(object):
         self.Verbose = True
 
         if runOnInit:
+            self.detrendY()
             self.setMethFom()
             self.calcFom()
 
@@ -1270,6 +1298,23 @@ class FoM(object):
 
         # set the method and record the name
         self.methFom = getattr(self, choiceFom)
+
+    def detrendY(self):
+
+        """Do the detrending of the datapoints"""
+
+        if not self.detrend:
+            return
+
+        wts = np.ones(np.size(self.yObs))
+        if np.size(self.eObs) <> np.size(self.yObs):
+            wts = 1.0/self.eObs**2
+                      
+        detPars = np.polyfit(self.tObs, self.yObs, self.detDeg, \
+                                 w=wts)
+
+        yTrend = np.polyval(detPars, self.tObs)
+        self.yObs = self.yObs - yTrend
 
     def calcFoM(self):
 
@@ -1550,7 +1595,8 @@ def testCombinedSample(nTrials=1, gapMin=0.7):
 
 def testCompact(nTrials=1, gapMin=0.7, \
                     filObstimes='DIA2017.csv', \
-                    filTemplate='92Binned.fits'):
+                    filTemplate='92Binned.fits', \
+                    doDetrend=False, detDeg=0):
 
     """As testCombinedSample, but with a compacted instrution set"""
 
@@ -1558,7 +1604,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
     FLC.wrapPrepSims()
 
     # now use an instance of our TrialSet class to run the iterations
-    TS = TrialSet(nTrials, FakeTrial=FLC, gapMin=gapMin)
+    TS = TrialSet(nTrials, FakeTrial=FLC, gapMin=gapMin, \
+                      doDetrend=doDetrend, detDeg=detDeg)
     TS.doTrials()
     TS.writeTrials()
 

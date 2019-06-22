@@ -48,6 +48,10 @@ class FakeLC(object):
         self.methPSD = DELCgen.BendingPL
         self.parseModelChoice()
 
+        # perturb the samples with measurement uncertainty after the
+        # generation of the power law noise
+        self.pertByMeasureUncty = True
+
         # optional file containing prior observations we want to
         # reproduce
         self.filTemplate = filTemplate[:]
@@ -492,6 +496,12 @@ class FakeLC(object):
         # interesting bug: the errors don't seem to be sent through to
         # the simulated object. We'll graft them on here.
         self.LCsample.errors = np.copy(self.LCblank.errors)
+
+        # perturb the results by measurement uncertainty
+        if self.pertByMeasureUncty:
+            ePert = np.random.normal(size=np.size(self.LCsample.errors)) \
+                * self.LCsample.errors
+            self.LCsample.flux += ePert
 
         # copy the units-quantities from blank
         self.LCsample.isFlux = self.LCblank.isFlux

@@ -834,6 +834,9 @@ class TrialSet(object):
         # time range covered by the requested sampling
         self.timeRangeSample = 0.
 
+        # header for output file
+        self.hdr = []
+
     def findTimeRange(self):
 
         """Finds the time range covered by the requested sampling"""
@@ -888,6 +891,63 @@ class TrialSet(object):
         #self.nameFomUsed = FS.lFoms[0].methFom.__name__
         self.nameFomUsed = FSall.nameFoM
 
+    def parsToHeader(self):
+
+        """Constructs FITS header from the simulation parameters"""
+
+        self.hdr = fits.Header()
+        self.hdr['nTrials'] = (self.nTrials, \
+                                   "Number of trial sets run")
+        self.hdr['fomUsed'] = (self.nameFomUsed, \
+                                   "Method used to calculate array contents")
+        self.hdr['gapMin'] = ( self.gapAll, \
+                                   "Minimum gap between time chunks in output")
+
+        # Now for some more detailed parameters on the
+        # simulation. 
+        self.hdr['rnMeth'] = ( self.FakeTrial.methPSD.__name__, \
+                                   "PSD simulation method")
+        self.hdr['rnStd'] = ( self.FakeTrial.sampleStd, \
+                                  "PSD simulation std dev")
+        self.hdr['rnMean'] = ( self.FakeTrial.sampleMean, \
+                                   "PSD simulation mean")
+        self.hdr['rnlFac'] = ( self.FakeTrial.rnlFactor, \
+                                   "DELCgen RNLfactor")
+        self.hdr['tBin'] = ( self.FakeTrial.LCblank.tbin, \
+                                 "DELGgen TBIN factor")
+
+        # I don't think fits headers can handle array arguments, so we
+        # parcel the PSD params into scalars
+        psdPars = self.FakeTrial.PSDpars
+        sStem = 'rnPar_'
+        cStem = 'PSD parameter'
+        for iPar in range(np.size(self.FakeTrial.PSDpars)):
+            keyName = '%s%i' % (sStem, iPar)
+            commen = '%s %i' % (cStem, iPar)
+            self.hdr[keyName] = (psdPars[iPar], \
+                                     commen)
+
+        # some simulation control variables
+        self.hdr['pertUnc'] = (self.FakeTrial.pertByMeasureUncty, \
+                                   "Simulation perturbed by obs uncertainty")
+        self.hdr['filSampl'] = (self.FakeTrial.filSamples, \
+                                    "Obsn file for sample and/or flux, uncty")
+        self.hdr['filTempl'] = (self.FakeTrial.filTemplate, \
+                                    "Template lc for simulation")
+        self.hdr['uObsFl'] = (self.FakeTrial.useObsFlux, \
+                                  "Obsn used for flux")
+        self.hdr['uObsErr'] = (self.FakeTrial.useObsUncty, \
+                                   "Obsn used for uncertainties")
+
+        # just so that we can trace the provenence of the mags and
+        # fluxes:
+        self.hdr['isFlux'] = (self.FakeTrial.LCsample.isFlux, \
+                                  "Simulated in flux" )
+        self.hdr['refMag'] = (self.FakeTrial.LCsample.refMag, \
+                                  "Reference apparent mag")
+        self.hdr['refFlux'] = (self.FakeTrial.LCsample.refFlux, \
+                                   "Reference flux")
+
     def writeTrials(self):
 
         """Writes the trialset to disk"""
@@ -895,27 +955,30 @@ class TrialSet(object):
         if len(self.filStatsAll) < 2:
             return
 
+        # make a more sophisticated header
+        self.parsToHeader()
+
         # populate the header with some keyword arguments
-        hdr = fits.Header()
-        hdr['nTrials'] = self.nTrials
-        hdr['fomUsed'] = self.nameFomUsed
-        hdr['gapMin'] = self.gapAll
+#        hdr = fits.Header()
+#        hdr['nTrials'] = self.nTrials
+#        hdr['fomUsed'] = self.nameFomUsed
+#        hdr['gapMin'] = self.gapAll
 
         # could write various values of the FakeTrial object here too...
         if os.access(self.filStatsAll, os.W_OK):
             os.remove(self.filStatsAll)
             
-        fits.writeto(self.filStatsAll, self.aStatsAll, header=hdr)
+        fits.writeto(self.filStatsAll, self.aStatsAll, header=self.hdr)
 
         # write the separate chunks stats file only if we populated it
         if np.size(self.aStats) < 1:
             return
 
-        hdr['gapMin'] = self.gapMin
+        self.hdr['gapMin'] = self.gapMin
         if os.access(self.filStatsChunks, os.W_OK):
             os.remove(self.filStatsChunks)
 
-        fits.writeto(self.filStatsChunks, self.aStats, header=hdr)
+        fits.writeto(self.filStatsChunks, self.aStats, header=self.hdr)
 
         
 

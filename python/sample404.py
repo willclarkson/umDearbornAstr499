@@ -618,10 +618,13 @@ class TrialSet(object):
         
         # array of trial statistics
         self.aStats = np.array([])
+        self.aStatsAll = np.array([])
 
         # output file for statistics (fits is convenient because we
         # can attach a header)
-        self.filStats = filStats[:]
+        self.filStatsAll = filStats[:]
+        lSplit = os.path.splitext(self.filStatsAll)
+        self.filStatsChunks = '%s_chunks%s' % (lSplit[0], lSplit[1])
         
         # the object holding the fake trial and methods
         self.FakeTrial = FakeTrial
@@ -631,53 +634,110 @@ class TrialSet(object):
 
         # min gap for chunking each fake set
         self.gapMin = gapMin
+        self.gapAll = 999 # default gap for the entire dataset
+
+        # *name* of the method used as figure of merit
+        self.nameFomUsed = 'BLANK' # easily-recognizable default
+
+        # time range covered by the requested sampling
+        self.timeRangeSample = 0.
+
+    def findTimeRange(self):
+
+        """Finds the time range covered by the requested sampling"""
+
+        tSampl = self.FakeTrial.LCblank.time
+        self.timeRangeSample = np.max(tSampl) - np.min(tSampl)
 
     def doTrials(self):
 
         """Does the trials"""
-
+        
+        # initialize the outputs
+        self.aStatsAll = np.array([])
         self.aStats = np.array([])
+
+        # We only need to do the chunks if the min gap is smaller than
+        # the time range covered by the data.
+        self.findTimeRange()
+        doChunks = self.timeRangeSample > self.gapMin
+
         for iTrial in range(self.nTrials):
-            if iTrial % self.nReport and iTrial > 0:
+            if iTrial % self.nReport < 1 and iTrial > 0:
                 sys.stdout.write("\r TrialSet.doTrials INFO - trial %i of %i" \
                                      % (iTrial, self.nTrials))
                 sys.stdout.flush()
 
-                self.FakeTrial.sampleNoiseModel()
+            self.FakeTrial.sampleNoiseModel()
                 
-                if iTrial < 1:
-                    print("TrialSet.doTrials INFO - plotting %i..." \
+            if iTrial < 1:
+                print("TrialSet.doTrials INFO - plotting %i..." \
                               % (iTrial))
-                    self.FakeTrial.showLC()
-                    print("... done.")
+                self.FakeTrial.showLC()
+                print("... done.")
 
-                FS = FoMSet(self.FakeTrial.LCsample, self.FakeTrial.bObs, \
-                                gapMin=self.gapMin)
-                FS.evaluateFoMs()
+            FSall = FoMSet(self.FakeTrial.LCsample, \
+                               self.FakeTrial.bObs, \
+                               gapMin=self.gapAll, \
+                               runOnInit=True)
+            self.aStatsAll = self.accumArrays(self.aStatsAll, FSall.aFoms)
 
-                # pass up to the instance
-                if np.size(self.aStats) < 1:
-                    self.aStats = np.copy(FS.aFoms)
-                else:
-                    self.aStats = np.vstack(( self.aStats, FS.aFoms ))
+            if doChunks:
+                FS = FoMSet(self.FakeTrial.LCsample, \
+                                self.FakeTrial.bObs, \
+                                gapMin=self.gapMin, \
+                                runOnInit=True)
+                self.aStats = self.accumArrays(self.aStats, FS.aFoms)
+                
+
+        # get the name of the method used for the fom (we might
+        # normally specify this here too, but this way we read even if
+        # the default was used)
+        #self.nameFomUsed = FS.lFoms[0].methFom.__name__
+        self.nameFomUsed = FSall.nameFoM
 
     def writeTrials(self):
 
         """Writes the trialset to disk"""
 
-        if len(self.filStats) < 2:
+        if len(self.filStatsAll) < 2:
             return
 
         # populate the header with some keyword arguments
         hdr = fits.Header()
         hdr['nTrials'] = self.nTrials
-        hdr['gapMin'] = self.gapMin
+        hdr['fomUsed'] = self.nameFomUsed
+        hdr['gapMin'] = self.gapAll
 
         # could write various values of the FakeTrial object here too...
-        if os.access(self.filStats, os.W_OK):
-            os.remove(self.filStats)
+        if os.access(self.filStatsAll, os.W_OK):
+            os.remove(self.filStatsAll)
             
-        fits.writeto(self.filStats, self.aStats, header=hdr)
+        fits.writeto(self.filStatsAll, self.aStatsAll, header=hdr)
+
+        # write the separate chunks stats file only if we populated it
+        if np.size(self.aStats) < 1:
+            return
+
+        hdr['gapMin'] = self.gapMin
+        if os.access(self.filStatsChunks, os.W_OK):
+            os.remove(self.filStatsChunks)
+
+        fits.writeto(self.filStatsChunks, self.aStats, header=hdr)
+
+        
+
+    def accumArrays(self, aMaster = np.array([]), aNew = np.array([])):
+
+        """Convenience-method to copy or vstack aNew onto aMaster as
+        appropriate"""
+
+        if np.size(aMaster) < 1:
+            aMaster = np.copy(aNew)
+        else:
+            aMaster = np.vstack(( aMaster, aNew ))
+
+        return aMaster
 
 class TimeChunks(object):
 
@@ -771,7 +831,7 @@ class FoMSet(object):
     """
 
     def __init__(self, LCobj=None, bObs=np.array([]), gapMin=999., \
-                     parseOnInit=True):
+                     parseOnInit=True, runOnInit=True):
 
         self.LCobj = LCobj
         self.bObs = np.copy(bObs)
@@ -801,6 +861,9 @@ class FoMSet(object):
         # control variable
         self.Verbose=True
 
+        # record of the FoM name used
+        self.nameFoM='np.std'
+
         # setup operations based on input arguments
         if parseOnInit:
             self.unpackLCobj()
@@ -808,6 +871,9 @@ class FoMSet(object):
             self.extractObservedData()
             self.partitionIntoChunks()
             self.initFomHolders()
+
+        if runOnInit:
+            self.evaluateFoMs()
 
     def unpackLCobj(self):
 
@@ -896,6 +962,9 @@ class FoMSet(object):
             self.lFoms[iChunk] = thisFom
             self.aFoms[iChunk] = thisFom.fomStat
 
+        # record the name of the FoM used
+        self.nameFoM = self.lFoms[0].methFom.__name__
+
 class FoM(object):
 
     """Figure of merit object for a single data chunk"""
@@ -944,6 +1013,7 @@ class FoM(object):
                           % (choiceDefault))
             choiceFom = choiceDefault[:]
 
+        # set the method and record the name
         self.methFom = getattr(self, choiceFom)
 
     def calcFoM(self):

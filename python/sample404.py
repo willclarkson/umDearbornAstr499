@@ -108,6 +108,12 @@ class FakeLC(object):
         self.sampleLen = 0
         self.sampleTbin = 100000 # make this large for fine sampling
 
+        # default reference mag and flux for conversion. (2019-06-22
+        # I'm undecided about whether to set this at the FakeLC level
+        # or to set this object-by-object.)
+        self.refMag = 16.2
+        self.refFlux = 10000.
+
         # DELCgen objects
         self.LCtemplate = None  # template from previous data
         self.LCblank = None  # blank lc for passing to Simulate_TK
@@ -167,13 +173,14 @@ class FakeLC(object):
 
         self.tSample = self.genFakeTimes(nData, mjdMin, mjdMax)
 
-    def lcTemplateFromFile(self):
+    def lcTemplateFromFile(self, refMag=16., refFlux=1.0, isMag=True):
 
         """Populates template arrays and lightcurve object from
-        file"""
+        file."""
 
-        # This may duplicate functionality in lcObsFromFile, might
-        # want to refactor this later.
+        # Also sets the reference magnitude and flux at both the
+        # instance level for FakeLC and for the lightcurve object.
+
         if not os.access(self.filTemplate, os.R_OK):
             if self.Verbose:
                 print("FakeLC.lcTemplateFromFile WARN - cannot read path %s" \
@@ -190,9 +197,17 @@ class FakeLC(object):
 
         self.LCtemplate = DELCgen.Lightcurve(\
             self.tTemplate, self.yTemplate, self.sampleTbin, self.eTemplate)    
-        
 
-    def lcObsFromFile(self):
+        # Set the reference quantities
+        self.LCtemplate.isFlux = np.logical_not(isMag)
+        self.LCtemplate.refFlux = refFlux
+        self.LCtemplate.refMag = refMag
+
+        # Ensure the FakeLC instance has these values too
+        self.refFlux = refFlux
+        self.refMag = refMag
+
+    def lcObsFromFile(self, refMag=16., refFlux=1.0, isMag=True):
 
         """Imports observation lightcurve from file"""
 
@@ -227,6 +242,11 @@ class FakeLC(object):
         # lightcurve object
         self.LCobs = DELCgen.Lightcurve(tObs, yObs, self.sampleTbin, eObs)    
 
+        # Set the reference quantities
+        self.LCtemplate.isMag = isMag
+        self.LCtemplate.refFlux = refFlux
+        self.LCtemplate.refMag = refMag
+
     def findObsChunks(self):
 
         """Finds the chunks in the LCobs object"""
@@ -239,6 +259,22 @@ class FakeLC(object):
             return
 
         self.ChunksObs = TimeChunks(timesObs, self.minDtChunk, runOnInit=True)
+
+    def lcsAsFlux(self):
+
+        """Ensures the lightcurve objects are expressed as flux"""
+
+        # ensure the same reference flux is set for everything. (Note
+        # that it's really the uncertainties we care about here in the
+        # conversions)
+        refFlux = self.LCtemplate.refFlux
+
+        # This can be looped, but we write out here for clarity.
+        if not self.LCobs.isFlux:
+            self.LCobs = self.magToFlux(self.LCobs, refFlux)
+
+        if not self.LCblank.isFlux:
+            self.LCblank = self.magToFlux(self.LCblank, refFlux)
 
     def buildOvertimes(self, tBuffer=0.5, nFac=5):
 
@@ -271,22 +307,66 @@ class FakeLC(object):
         if nFac < 50:
             nSim = np.size(timesObs)*nFac
 
-        # median uncty and y values, taken from the observation object
-        eMed = np.median(unctyObs)
-        yMed = np.median(fluxObs)
+        # Take the median flux and uncertainty from the template
+        # object, unless otherwise set
+        if self.useObsUncty:
+            LCforUnct = self.LCobs
+        else:
+            LCforUnct = self.LCtemplate
+            
+        eMed = np.median(LCforUnct.errors)
+        eStd = np.std(LCforUnct.errors)
 
+        print("INFO - eMed, eStd, isFlux:", eMed, eStd, \
+                  LCforUnct.isFlux, LCforUnct.refMag)
+
+        if self.useObsFlux:
+            LCforFlux = self.LCobs
+        else:
+            LCforFlux = self.LCtemplate
+        yMed = np.median(LCforFlux.flux)
+
+        #eMed = np.median(self.LCtemplate.errors)
+        #yMed = np.median(self.LCtemplate.
+        #eMed = np.median(unctyObs)
+        #yMed = np.median(fluxObs)
+
+        # populate the larger sample including the gaps
         tLarge = np.linspace(tMin, tMax, nSim, endpoint=True)
-        eLarge = np.repeat(eMed, np.size(tLarge))
-        yLarge = np.random.normal(size=np.size(tLarge))*eLarge + yMed
+        nLarge = np.size(tLarge)
+        eLarge = np.repeat(eMed, nLarge)
+        eLarge = np.random.normal(size=nLarge)*eStd + eMed
+        yLarge = np.random.normal(size=nLarge)*eLarge + yMed
                            
+        # What we use for the observation intervals depends on whether
+        # we are using the observed yvalues and errors. If we are
+        # using them, simply copy them in. Otherwise, generate new
+        # ones using the parameters we copied from the template
+        # lightcurve
+        nObs = np.size(timesObs)
+        if self.useObsUncty:
+            obsErr = np.copy(unctyObs)
+        else:
+            obsErr = np.random.normal(size=nObs)*eStd + eMed
+
+        if self.useObsFlux:
+            obsFlux = np.copy(fluxObs)
+        else:
+            obsFlux = np.random.normal(size=nObs)*obsErr + yMed
+
         # now fuse the large with the observations. We do this for the
         # time, flux, error for both objects. 
         bLargeInChunk = self.ChunksObs.timesInChunks(tLarge)
 
         # now build the combined arrays and argsort by times
+        # tCombo = np.hstack(( tLarge[~bLargeInChunk], timesObs ))
+        # yCombo = np.hstack(( yLarge[~bLargeInChunk], fluxObs ))
+        # eCombo = np.hstack(( eLarge[~bLargeInChunk], unctyObs ))
+
         tCombo = np.hstack(( tLarge[~bLargeInChunk], timesObs ))
-        yCombo = np.hstack(( yLarge[~bLargeInChunk], fluxObs ))
-        eCombo = np.hstack(( eLarge[~bLargeInChunk], unctyObs ))
+        yCombo = np.hstack(( yLarge[~bLargeInChunk], obsFlux ))
+        eCombo = np.hstack(( eLarge[~bLargeInChunk], obsErr ))
+
         
         lSor = np.argsort(tCombo)
         
@@ -296,6 +376,12 @@ class FakeLC(object):
                                               yCombo[lSor], \
                                               tbin=self.sampleTbin, \
                                               errors=eCombo[lSor])
+
+        # the LCblank should by this point be in flux (2019-06-22:
+        # should add some syntax to ensure this!)
+        self.LCblank.isFlux = True
+        self.LCblank.refFlux = self.refFlux # MAY WANT TO CHECK
+        self.LCblank.refMag = self.refMag 
 
         # now we have this, set a boolean with the observations in the
         # chunk
@@ -407,6 +493,11 @@ class FakeLC(object):
         # the simulated object. We'll graft them on here.
         self.LCsample.errors = np.copy(self.LCblank.errors)
 
+        # copy the units-quantities from blank
+        self.LCsample.isFlux = self.LCblank.isFlux
+        self.LCsample.refMag = self.LCblank.refMag
+        self.LCsample.refFlux = self.LCblank.refFlux
+
     def lsNoiseModel(self, clobberPer=False):
 
         """Convenience-method to draw the lomb-scargle on the current
@@ -484,7 +575,56 @@ class FakeLC(object):
                                      np.log10(self.lsPmax), \
                                      self.lsNper, endpoint=True)
         
-    def showLC(self, figname='testLC.png'):
+    def magToFlux(self, LCobj=None, refFlux=-99):
+
+        """Convenience-method to convert a lightcurve to flux. Uses
+        the LC object's own attributes to get the reference flux and
+        magnitude"""
+
+        try:
+            yMag = LCobj.flux
+            eMag = LCobj.errors
+        except:
+            if self.Verbose:
+                print("FakeLC.magToFlux WARN - problem with LC object")
+            return None
+
+        # Ensure the ref flux is set somewhere
+        if refFlux < 0:
+            refFlux = np.copy(LCobj.refFlux)
+        else:
+            refFlux = np.copy(refFlux)
+
+        # for the moment, we take the refMag and refFlux from the LC
+        # object for internal consistency.
+        deltaMag = LCobj.refMag - yMag
+
+        # print("magToFlux INFO - refMag, refFlux", LCobj.refFlux, LCobj.refMag)
+
+        # convert the magnitude to flux, use the Taylor approximation
+        # for the uncertainties
+        yFlux = refFlux * 100.0**(deltaMag/5.0)
+        eFlux = yFlux * eMag / 1.086
+
+        # Update the attributes
+        LCobj.flux = yFlux
+        LCobj.errors = eFlux
+
+        # we recompute the statistics, since LightCurve seems to
+        # compute them once on initialization. We do the same ops here
+        # as the first few lines of Lightcurve.__init__ in DELCgen.py.
+        LCobj.mean = np.mean(LCobj.flux)
+        LCobj.std = np.std(LCobj.flux) 
+
+        # add attributes to the LC object (note that the default LC
+        # object doesn't have these by default. We might consider
+        # adding them whenever we generate these objects.)
+        LCobj.isFlux=True
+        LCobj.refFlux=refFlux
+
+        return LCobj
+
+    def showLC(self, figname='testLC.png', showMag=True):
 
         """Debug routine - shows the simulated lightcurve"""
 
@@ -525,17 +665,27 @@ class FakeLC(object):
         logAllPer, logAllPow, _ = binData(np.log10(self.lsPer), \
                                               np.log10(lsAll), nBin, \
                                               useMedian=True)
-
+        
         # set colors upfront
         colorSho = 'k'
         colorOut = '0.5'
 
+        # plot quantities
+        nRows = 2
+        nCols = 2
+        figSz = (7,6)
+
+        if self.LCsample.isFlux and showMag:
+            nRows = 3
+            figSz = (7,8)
+
         fig1 = plt.figure(1)
+        fig1.set_size_inches(*figSz, forward=True)
         fig1.clf()
 
         fig1.subplots_adjust(hspace=0.35)
 
-        ax1 = fig1.add_subplot(211)
+        ax1 = fig1.add_subplot(nRows, 1, 1)
         
         dumScatt = ax1.errorbar(tSampl[bSho], ySampl[bSho], \
                                     yerr=eSampl[bSho], ls='none', \
@@ -555,9 +705,9 @@ class FakeLC(object):
         # now show the LS of this sample. We might or might not use
         # two panels for this...
         if np.sum(~bSho) < 1:
-            ax2 = fig1.add_subplot(212)
+            ax2 = fig1.add_subplot(nRows, 1, nRows)
         else:
-            ax2 = fig1.add_subplot(223)
+            ax2 = fig1.add_subplot(nRows, nCols, nRows*nCols - 1)
 
         # do the LS for the "observations"
         dumLS = ax2.loglog(self.lsPer, lsSho, color=colorSho, \
@@ -572,17 +722,41 @@ class FakeLC(object):
 
         # if the entire observation set is different, plot that too.
         if np.size(lsAll) > 0:
-            ax3 = fig1.add_subplot(224, sharey=ax2)
+            ax3 = fig1.add_subplot(nRows, nCols, nRows*nCols, sharey=ax2)
             dumLS3 = ax3.loglog(self.lsPer, lsAll, color=colorOut, \
                                     lw=1)
             ax3.set_xlabel('Period (d)')
             #ax3.set_ylabel('LS power')
             ax3.set_xlim(self.lsPmin, self.lsPmax)
 
-        # overplot the binned LS
+            # overplot the binned LS
             dumBin = ax3.loglog(10.0**logAllPer, 10.0**logAllPow, 'r-', \
                                     zorder=5)
 
+
+        # Finally, if asked, show the flux converted to magnitude
+        # using the reference flux and magnitude assigned to the
+        # LCsample object
+        if showMag and nRows > 2:
+            mags = self.LCsample.refMag - \
+                2.5*np.log10(ySampl/self.LCsample.refFlux)  
+            eMag = 1.086 * eSampl/ySampl
+
+            axM = fig1.add_subplot(nRows, 1, 2, sharex=ax1)
+            dumScatMag = axM.errorbar(\
+                tSampl[bSho], mags[bSho], \
+                    yerr=eMag[bSho], ls='none', \
+                    ms=1, alpha=0.5, marker='o', zorder=2, \
+                    color=colorSho, ecolor=colorSho)
+
+            dumOutMag = axM.errorbar(\
+                tSampl[~bSho], mags[~bSho], \
+                    yerr=eMag[~bSho], ls='none', \
+                    ms=1, alpha=0.5, marker='o', zorder=2, \
+                    color=colorOut, ecolor=colorOut)
+
+            axM.set_xlabel('MJD (d)')
+            axM.set_ylabel('Mag')
 
         # save the figure to disk
         fig1.savefig(figname, rasterized=False)
@@ -595,7 +769,15 @@ class FakeLC(object):
 
         # template lightcurve (to extract the stddev for the
         # simulation)
-        self.lcTemplateFromFile()
+        self.lcTemplateFromFile(refMag=self.refMag, refFlux=self.refFlux)
+        self.getTemplateStats()
+
+        # for the moment, be verbose about the magnitude conversion
+        print("FakeLC.wrapPrepSims INFO - converting template mag to flux")
+        print("FakeLC.wrapPrepSims INFO - reference flux %.2f, ref mag %.2f" \
+                  % (self.LCtemplate.refFlux, self.LCtemplate.refMag))
+
+        self.LCtemplate = self.magToFlux(self.LCtemplate)
         self.getTemplateStats()
 
         # output sampling including gaps
@@ -1306,3 +1488,17 @@ def testCompact(nTrials=1, gapMin=0.7, \
     TS = TrialSet(nTrials, FakeTrial=FLC, gapMin=gapMin)
     TS.doTrials()
     TS.writeTrials()
+
+
+def testFluxConversion(filRef='92Binned.fits'):
+
+    """Tests conversion from magnitude to flux"""
+
+    FF = FakeLC()
+    FF.lcTemplateFromFile(refMag = 16.)
+    FF.getTemplateStats()
+
+    FF.LCtemplate = FF.magToFlux(FF.LCtemplate)
+    FF.getTemplateStats()
+
+    print FF.LCtemplate.isFlux

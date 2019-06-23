@@ -9,6 +9,11 @@
 # distribution as the Zurita et al. 2004 datasets to which we have
 # access.
 
+# 2019-06-22: testCompact() currently performs the simulation using
+# observation data to set the observation times and a template
+# lightcurve to poll for the PSD characteristics. This is the one I'm
+# developing at the moment so is a good place to start.
+
 # 2019-06-20 3:30 pm - to add: 
 #
 # (i)  read in the Z04 lightcurve with ellipsoidals subtracted
@@ -1712,7 +1717,43 @@ def testCompact(nTrials=1, gapMin=0.7, \
                     actOnFlux=True, \
                     choiceFom='simpleStd'):
 
-    """As testCombinedSample, but with a compacted instrution set"""
+    """Performs the simulation. Arguments:
+
+    nTrials = number of trial sets to generate
+
+    gapMin = minimum gap between chunks in the output data. The
+    default 0.7 breaks the output into night-by-night chunks. Note
+    that the figure of merit is ALWAYS calculated for the entire
+    output dataset; setting gapMin to a value < the total time
+    baseline ensures that the FoM is also calculated for the chunks
+    (and stored in a separate output file).
+
+    filObstimes = file used for the output observation times
+
+    filTemplate = file to be used for the mean and standard deviation
+    when simulating the red noise datasets.
+
+    doDetrend -- detrend the output data before evaluating the figure of merit?
+
+    detDeg = polynomial degree for detrending (if doDetrend is True)
+
+    actOnFlux -- ensure the simulation is in "flux" units before
+    calculating the fiture of merit? (Otherwise the simulation will be
+    in "mag" units)
+
+    choiceFom = name of the method in class FoM() used to compute the
+    "figure of merit" for each simulated dataset
+
+    --
+    
+    Example call to generate 4 trials, with constant-level
+    subtraction, transforming the simulation from flux to apparent
+    magnitude and using the error-corrected standard deviation as a
+    figure of merit:
+
+    sample404.testCompact(4, doDetrend=True, detDeg=0, actOnFlux=False, choiceFom='quadDiff')
+
+    """
 
     FLC = FakeLC(filSamples=filObstimes, filTemplate=filTemplate)
     FLC.wrapPrepSims()

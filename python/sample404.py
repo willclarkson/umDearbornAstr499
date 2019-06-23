@@ -445,19 +445,36 @@ class FakeLC(object):
         
         return np.sort(np.random.uniform(size=nData, low=mjdMin, high=mjdMax))
 
-    def getTemplateStats(self):
+    def getTemplateStats(self, unctyCorr = True):
 
         """Get the statistics for the sample lightcurve from the
-        template object"""
+        template object. If unctyCorr is true, corrects for the (mean)
+        measurement uncertainty."""
 
+        # When simulating in sampleNoiseModel(), self.sampleMean and
+        # self.sampleStd are used.
+
+        # (Note that if we're dealing with red noise, the stddev
+        # should be much larger than the average measurement
+        # uncertainty. But we want to get this right.)
+
+        # Update 2019-06-23 - this recomputes the statistics rather
+        # than simply reporting them across, since DELCgen.Lightcurve
+        # only computes mean and std on initialization.
         try:
-            self.sampleMean = self.LCtemplate.mean
-            self.sampleStd = self.LCtemplate.std
-            # self.sampleLen = self.LCtemplate.length
+            yFlux = self.LCtemplate.flux
         except:
             if self.Verbose:
                 print("FakeLC.getTemplateStats WARN - LCtemplate problem")
             return
+
+        # compute the mean and stddev
+        self.sampleMean = np.mean(yFlux)
+        self.sampleStd = np.std(yFlux)
+
+        if unctyCorr:
+            errMean = np.mean(self.LCtemplate.errors)
+            self.sampleStd = np.sqrt(np.var(yFlux) - errMean**2)
 
         # report the stats found to terminal
         if self.Verbose:

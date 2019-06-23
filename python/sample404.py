@@ -868,7 +868,8 @@ class TrialSet(object):
                      filStats='tmp_trialStats.fits', \
                      nReport = 5, gapMin=999, \
                      doDetrend=False, detDeg=0, \
-                     actOnFlux=True):
+                     actOnFlux=True, \
+                     choiceFom='simpleStd'):
 
         self.nTrials = nTrials
         
@@ -884,6 +885,9 @@ class TrialSet(object):
         
         # the object holding the fake trial and methods
         self.FakeTrial = FakeTrial
+
+        # Which method in class FoM() do we use?
+        self.choiceFom = choiceFom[:]
 
         # report to screen every nReport trials
         self.nReport = nReport
@@ -960,6 +964,7 @@ class TrialSet(object):
                                gapMin=self.gapAll, \
                                doDetrend=self.doDetrend, \
                                detDeg=self.detDeg, \
+                               choiceFom=self.choiceFom, \
                                runOnInit=True)
             self.aStatsAll = self.accumArrays(self.aStatsAll, FSall.aFoms)
 
@@ -969,6 +974,7 @@ class TrialSet(object):
                                 gapMin=self.gapMin, \
                                 doDetrend=self.doDetrend, \
                                 detDeg=self.detDeg, \
+                                choiceFom=self.choiceFom, \
                                 runOnInit=True)
                 self.aStats = self.accumArrays(self.aStats, FS.aFoms)
                 
@@ -1183,7 +1189,8 @@ class FoMSet(object):
 
     def __init__(self, LCobj=None, bObs=np.array([]), gapMin=999., \
                      parseOnInit=True, runOnInit=True, \
-                     doDetrend=False, detDeg=0):
+                     doDetrend=False, detDeg=0, \
+                     choiceFom = 'simpleStd'):
 
         self.LCobj = LCobj
         self.bObs = np.copy(bObs)
@@ -1213,8 +1220,8 @@ class FoMSet(object):
         # control variable
         self.Verbose=True
 
-        # record of the FoM name used
-        self.nameFoM='np.std'
+        # record of the FoM name used (watchout - confusing namespace?)
+        self.nameFoM=choiceFom[:]
 
         # detrending information for FoM
         self.doDetrend = doDetrend
@@ -1307,8 +1314,8 @@ class FoMSet(object):
                               self.eObs[bChunk], \
                               detrend=self.doDetrend, \
                               detDeg = self.detDeg, \
-                              runOnInit=False)
-
+                              runOnInit=False, \
+                              choiceFom = self.nameFoM)
             thisFom.chunkID = thisID
             thisFom.calcFoM()
 
@@ -1410,6 +1417,15 @@ class FoM(object):
         """Computes the standard deviation of the input data"""
 
         self.fomStat = np.std(self.yObs)
+
+    def quadDiff(self):
+
+        """Find the quadrature difference between the stddev and the
+        mean uncertainty"""
+
+        varDiff = np.std(self.yObs)**2 - np.median(self.eObs)**2
+        self.fomStat = np.sqrt(varDiff)
+        
 
 def binData(tIn=np.array([]), yIn=np.array([]), \
                 nBins=100, nMin=2, \
@@ -1676,7 +1692,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
                     filObstimes='DIA2017.csv', \
                     filTemplate='92Binned.fits', \
                     doDetrend=False, detDeg=0, \
-                    actOnFlux=True):
+                    actOnFlux=True, \
+                    choiceFom='simpleStd'):
 
     """As testCombinedSample, but with a compacted instrution set"""
 
@@ -1686,7 +1703,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
     # now use an instance of our TrialSet class to run the iterations
     TS = TrialSet(nTrials, FakeTrial=FLC, gapMin=gapMin, \
                       doDetrend=doDetrend, detDeg=detDeg, \
-                      actOnFlux = actOnFlux)
+                      actOnFlux = actOnFlux, \
+                      choiceFom = choiceFom[:])
     TS.doTrials()
     TS.writeTrials()
 

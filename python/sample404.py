@@ -6,27 +6,21 @@
 
 # Purpose: sample fake lightcurve for V404 Cyg to test the hypothesis
 # that our 201x datasets are drawn from the same underlying
-# distribution as the Zurita et al. 2004 datasets to which we have
-# access.
+# distribution as the Zurita et al. 2004 datasets.
 
 # 2019-06-22: testCompact() currently performs the simulation using
 # observation data to set the observation times and a template
 # lightcurve to poll for the PSD characteristics. This is the one I'm
 # developing at the moment so is a good place to start.
 
-# 2019-06-20 3:30 pm - to add: 
-#
-# (i)  read in the Z04 lightcurve with ellipsoidals subtracted
-#
-# (ii) implement the figure of merit for lightcurve comparison
-#
-# (iii) Decide which FoM to use, decide what to do with the bucket of simulations
-#
-# (iv) test the case when we're NOT simulating the gaps as well as the
-# observed data. Based on the way this was built, just passing no
-# boolean to the FomSet object should cause the whole thing to be used
-# as a matter of course.
+# 2019-06-22 to add:
 
+# (i) Apply the identical FoM to the template lightcurve and/or the
+# observation lightcurve, propagating the results through into the
+# output file (so that everything is in the same location);
+#
+# (ii) A simple class to perform the output comparison. This would do
+# the nice plots for the paper. AMB will likely have thoughts on this!
 
 import os, sys, time
 import copy
@@ -241,21 +235,21 @@ class FakeLC(object):
         
         # default unctys to be replaced if appropriate
         eObs = np.repeat(self.defaultUncty, np.size(tObs))
-        if self.useObsUncty and self.keyObsUnct in tObs.colnames:
+        if self.useObsUncty and self.keyObsUnct in tablObs.colnames:
             eObs = tablObs[self.keyObsUnct]
 
         yObs = np.random.normal(size=np.size(tObs))*eObs + self.defaultMean
-        if self.useObsFlux and self.keyObsFlux in tObs.colnames:
-            yObs = tObs[self.keyObsFlux]
+        if self.useObsFlux and self.keyObsFlux in tablObs.colnames:
+            yObs = tablObs[self.keyObsFlux]
 
         # now we have the time, flux, error, create the "Obs"
         # lightcurve object
         self.LCobs = DELCgen.Lightcurve(tObs, yObs, self.sampleTbin, eObs)    
 
         # Set the reference quantities
-        self.LCtemplate.isMag = isMag
-        self.LCtemplate.refFlux = refFlux
-        self.LCtemplate.refMag = refMag
+        self.LCobs.isFlux = np.logical_not(isMag)
+        self.LCobs.refFlux = np.float(refFlux)
+        self.LCobs.refMag = np.float(refMag)
 
     def findObsChunks(self):
 
@@ -601,7 +595,8 @@ class FakeLC(object):
         limits appropriately for the time sample simnulated"""
 
         if scaleLimits:
-            self.lsPmax = 2.0*np.max(self.LCblank.time)
+            self.lsPmax = 2.0*(np.max(self.LCblank.time) \
+                                   - np.min(self.LCblank.time))
             self.lsPmin = self.lsPmax / 1000.
 
         self.lsPer = np.logspace(np.log10(self.lsPmin), \
@@ -875,7 +870,8 @@ class FakeLC(object):
         self.getTemplateStats()
 
         # output sampling including gaps
-        self.lcObsFromFile()
+        self.lcObsFromFile(refMag=self.refMag, refFlux=self.refFlux)
+        self.LCobs = self.magToFlux(self.LCobs)
         self.findObsChunks()
         self.buildOvertimes()
     
@@ -1715,7 +1711,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
                     filTemplate='92Binned.fits', \
                     doDetrend=False, detDeg=0, \
                     actOnFlux=True, \
-                    choiceFom='simpleStd'):
+                    choiceFom='simpleStd', \
+                    testFits = False):
 
     """Performs the simulation. Arguments:
 
@@ -1744,6 +1741,9 @@ def testCompact(nTrials=1, gapMin=0.7, \
     choiceFom = name of the method in class FoM() used to compute the
     "figure of merit" for each simulated dataset
 
+    testFits -- test the use of uncertainties from 2017 binned
+    lightcurve? (Under development)
+
     --
     
     Example call to generate 4 trials, with constant-level
@@ -1756,6 +1756,19 @@ def testCompact(nTrials=1, gapMin=0.7, \
     """
 
     FLC = FakeLC(filSamples=filObstimes, filTemplate=filTemplate)
+
+    # adjust the keywords for AMB's binned lightcurves
+    if testFits:
+        FLC.filSamples = '17Binned.fits'
+        FLC.keyObsTime = 'tBin'
+        FLC.tSamplesFactor = 1.0
+        FLC.keyObsUnct = 'uBin'
+        FLC.keyObsFlux = 'fBin'
+
+        FLC.useObsUncty=False
+        FLC.useObsFlux=False
+
+    # prepare for simulations
     FLC.wrapPrepSims()
 
     # now use an instance of our TrialSet class to run the iterations

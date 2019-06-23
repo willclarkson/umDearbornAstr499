@@ -24,6 +24,7 @@
 
 
 import os, sys, time
+import copy
 import numpy as np
 import matplotlib.pylab as plt
 plt.style.use('ggplot') # could put this into the object
@@ -585,11 +586,15 @@ class FakeLC(object):
                                      np.log10(self.lsPmax), \
                                      self.lsNper, endpoint=True)
         
-    def magToFlux(self, LCobj=None, refFlux=-99):
+    def magToFlux(self, LCobj=None, refFlux=-99, asCopy=False):
 
         """Convenience-method to convert a lightcurve to flux. Uses
-        the LC object's own attributes to get the reference flux and
+        the LC object's own attributes to get the reference
         magnitude"""
+
+        # 2019-06-23 note to self: "Flux" is really "counts" or "count
+        # rate". We could use astropy's unit conversion functionality
+        # so that we don't have to have an arbitrary input
 
         try:
             yMag = LCobj.flux
@@ -598,6 +603,17 @@ class FakeLC(object):
             if self.Verbose:
                 print("FakeLC.magToFlux WARN - problem with LC object")
             return None
+
+        # return the altered original or a copy?
+        if asCopy:
+            LCret = copy.deepcopy(LCobj)
+        else:
+            LCret = LCobj
+
+        # if the output is already in flux, do nothing
+        if hasattr(LCret, 'isFlux'):
+            if LCret.isFlux:
+                return LCret
 
         # Ensure the ref flux is set somewhere
         if refFlux < 0:
@@ -617,23 +633,69 @@ class FakeLC(object):
         eFlux = yFlux * eMag / 1.086
 
         # Update the attributes
-        LCobj.flux = yFlux
-        LCobj.errors = eFlux
+        LCret.flux = yFlux
+        LCret.errors = eFlux
 
         # we recompute the statistics, since LightCurve seems to
         # compute them once on initialization. We do the same ops here
         # as the first few lines of Lightcurve.__init__ in DELCgen.py.
-        LCobj.mean = np.mean(LCobj.flux)
-        LCobj.std = np.std(LCobj.flux) 
+        LCret.mean = np.mean(LCobj.flux)
+        LCret.std = np.std(LCobj.flux) 
 
         # add attributes to the LC object (note that the default LC
         # object doesn't have these by default. We might consider
         # adding them whenever we generate these objects.)
-        LCobj.isFlux=True
-        LCobj.refFlux=refFlux
+        LCret.isFlux=True
+        LCret.refFlux=np.float(refFlux)
 
-        return LCobj
+        return LCret
 
+    def fluxToMag(self, LCobj=None, refMag=-99, asCopy=False):
+
+        """Converts an LC object in flux to magnitude"""
+
+        try:
+            yFlux = LCobj.flux
+            eFlux = LCobj.errors
+        except:
+            if self.Verbose:
+                print("FakeLC.fluxToMag WARN - problem with LC object")
+            return None
+
+        # returning as a copy?
+        if asCopy:
+            LCret = copy.deepcopy(LCobj)
+        else:
+            LCret = LCobj
+
+        # If the output is ALREADY in magnitudes, do nothing
+        if hasattr(LCret, 'isFlux'):
+            if not LCret.isFlux:
+                return LCret
+
+        # ensure the ref mag is set somewhere
+        if refMag < 0:
+            refMag = np.copy(LCobj.refMag)
+        else:
+            refMag = np.copy(refMag)
+
+        refFlux = np.copy(LCobj.refFlux)
+        yMag = refMag - 2.5*np.log10(yFlux / refFlux)
+        eMag = 1.086 * eFlux / refFlux 
+
+        LCret.flux = yMag
+        LCret.errors = eMag
+        
+        # recalculate (rather than transform) the mean and std
+        LCret.mean = np.mean(LCret.flux)
+        LCret.std = np.std(LCret.flux)
+
+        LCret.isFlux = False
+        LCret.refMag = np.float(refMag)
+
+        return LCret
+        
+            
     def showLC(self, figname='testLC.png', showMag=True):
 
         """Debug routine - shows the simulated lightcurve"""
@@ -805,7 +867,8 @@ class TrialSet(object):
     def __init__(self, nTrials=1, FakeTrial=None, \
                      filStats='tmp_trialStats.fits', \
                      nReport = 5, gapMin=999, \
-                     doDetrend=False, detDeg=0):
+                     doDetrend=False, detDeg=0, \
+                     actOnFlux=True):
 
         self.nTrials = nTrials
         
@@ -828,6 +891,10 @@ class TrialSet(object):
         # min gap for chunking each fake set
         self.gapMin = gapMin
         self.gapAll = 999 # default gap for the entire dataset
+
+        # Ensure the fake lightcurve is in flux units before
+        # performing the figure of merit on it?
+        self.actOnFlux = actOnFlux
 
         # Detrending information
         self.doDetrend = doDetrend
@@ -875,6 +942,18 @@ class TrialSet(object):
                               % (iTrial))
                 self.FakeTrial.showLC()
                 print("... done.")
+
+            # Convert the fake lightcurve to flux before acting on
+            # it. Note that the magToFlux and fluxToMag methods do
+            # nothing if the inputs are already in the desired output
+            # unit.
+            if self.actOnFlux:
+                self.FakeTrial.LCsample = self.FakeTrial.magToFlux(\
+                    self.FakeTrial.LCsample)
+            else:
+                self.FakeTrial.LCsample = self.FakeTrial.fluxToMag(\
+                    self.FakeTrial.LCsample)
+            
 
             FSall = FoMSet(self.FakeTrial.LCsample, \
                                self.FakeTrial.bObs, \
@@ -952,7 +1031,7 @@ class TrialSet(object):
         # just so that we can trace the provenence of the mags and
         # fluxes:
         self.hdr['isFlux'] = (self.FakeTrial.LCsample.isFlux, \
-                                  "Simulated in flux" )
+                                  "Statistic evaluated on flux lightcurve" )
         self.hdr['refMag'] = (self.FakeTrial.LCsample.refMag, \
                                   "Reference apparent mag")
         self.hdr['refFlux'] = (self.FakeTrial.LCsample.refFlux, \
@@ -1596,7 +1675,8 @@ def testCombinedSample(nTrials=1, gapMin=0.7):
 def testCompact(nTrials=1, gapMin=0.7, \
                     filObstimes='DIA2017.csv', \
                     filTemplate='92Binned.fits', \
-                    doDetrend=False, detDeg=0):
+                    doDetrend=False, detDeg=0, \
+                    actOnFlux=True):
 
     """As testCombinedSample, but with a compacted instrution set"""
 
@@ -1605,7 +1685,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
 
     # now use an instance of our TrialSet class to run the iterations
     TS = TrialSet(nTrials, FakeTrial=FLC, gapMin=gapMin, \
-                      doDetrend=doDetrend, detDeg=detDeg)
+                      doDetrend=doDetrend, detDeg=detDeg, \
+                      actOnFlux = actOnFlux)
     TS.doTrials()
     TS.writeTrials()
 

@@ -1,5 +1,5 @@
 #
-# sample404.py
+# v404_sample.py
 #
 
 # Started 2019-06-19 by WIC
@@ -26,7 +26,7 @@ import os, sys, time
 import copy
 import numpy as np
 import matplotlib.pylab as plt
-plt.style.use('ggplot') # could put this into the object
+plt.style.use('seaborn-whitegrid') # could put this into the object
 
 from astropy.table import Table
 from astropy.stats import LombScargle # for characterization
@@ -36,13 +36,23 @@ import DELCgen
 # for dumping the array of trial statistics to disk
 from astropy.io import fits 
 
+# For interpolation of existing data into a sample
+from scipy import interpolate
+
 class FakeLC(object):
 
     """Object to hold fake lightcurve parameters and samples"""
 
     def __init__(self, filSamples='DIA2017.csv', \
-                     filTemplate='92Binned.fits'):
+                     filTemplate='92Binned.fits', \
+                     keyObsTime='time', \
+                     keyObsFlux='flux', \
+                     keyObsUnct='error', \
+                     tSamplesFactor=1.0/1440.):
 
+        # Samples file default keywords and samples factor are set
+        # appropriately for CJF's DIA analysis
+        
         # power spectrum model
         self.modelChoice = 'BendingPL'
         self.methPSD = DELCgen.BendingPL
@@ -58,12 +68,19 @@ class FakeLC(object):
 
         # optional file containing at least the times of observation
         self.filSamples = filSamples[:]
-        self.keyObsTime = 'time' # from CJF's dia
-        self.keyObsFlux = 'flux' # placeholder
-        self.keyObsUnct = 'error' # placeholder
+        self.keyObsTime = keyObsTime[:] # 'time' # from CJF's dia
+        self.keyObsFlux = keyObsFlux[:] # 'flux' # placeholder
+        self.keyObsUnct = keyObsUnct[:] # 'error' # placeholder
         self.useObsFlux = False
         self.useObsUncty = False
-        self.tSamplesFactor = 1.0/1440. # scale factor for time file
+        self.tSamplesFactor = np.float(tSamplesFactor)
+
+        # 2019-07-05 (WIC) - I remembered we think some of the Zurita
+        # files list 3-sigma for the uncertainties. This factor allows
+        # that correction. The errors will be DIVIDED by these
+        # quantities on import.
+        self.errDivisorObs = 1.
+        self.errDivisorTemplate = 3. # WATCHOUT - DEFAULT CHANGED.
 
         # time-chunks object for the observations
         self.ChunksObs = None
@@ -177,10 +194,18 @@ class FakeLC(object):
 
         self.tSample = self.genFakeTimes(nData, mjdMin, mjdMax)
 
-    def lcTemplateFromFile(self, refMag=16., refFlux=1.0, isMag=True):
+    def lcTemplateFromFile(self, refMag=-99., refFlux=-99., isMag=True):
 
         """Populates template arrays and lightcurve object from
         file."""
+
+        # inherit the reference flux and magnitude from the instance
+        # if not set as arguments
+        if refMag < -90:
+            refMag = np.copy(self.refMag)
+
+        if refFlux < -90:
+            refFlux = np.copy(self.refFlux)
 
         # Also sets the reference magnitude and flux at both the
         # instance level for FakeLC and for the lightcurve object.
@@ -197,7 +222,7 @@ class FakeLC(object):
         # LCtemplate object
         self.tTemplate = tTempl['tBin']
         self.yTemplate = tTempl['fBin']
-        self.eTemplate = tTempl['uBin']
+        self.eTemplate = tTempl['uBin'] / self.errDivisorTemplate
 
         self.LCtemplate = DELCgen.Lightcurve(\
             self.tTemplate, self.yTemplate, self.sampleTbin, self.eTemplate)    
@@ -211,9 +236,16 @@ class FakeLC(object):
         self.refFlux = refFlux
         self.refMag = refMag
 
-    def lcObsFromFile(self, refMag=16., refFlux=1.0, isMag=True):
+    def lcObsFromFile(self, refMag=-99, refFlux=-99, isMag=True):
 
         """Imports observation lightcurve from file"""
+
+        # inherit the reference values from the instance
+        if refMag < -90:
+            refMag = np.copy(self.refMag)
+
+        if refFlux < -90:
+            refFlux = np.copy(self.refFlux)
 
         self.LCobs = None
         if not os.access(self.filSamples, os.R_OK):
@@ -236,7 +268,7 @@ class FakeLC(object):
         # default unctys to be replaced if appropriate
         eObs = np.repeat(self.defaultUncty, np.size(tObs))
         if self.useObsUncty and self.keyObsUnct in tablObs.colnames:
-            eObs = tablObs[self.keyObsUnct]
+            eObs = tablObs[self.keyObsUnct] / self.errDivisorObs
 
         yObs = np.random.normal(size=np.size(tObs))*eObs + self.defaultMean
         if self.useObsFlux and self.keyObsFlux in tablObs.colnames:
@@ -850,21 +882,24 @@ class FakeLC(object):
         # save the figure to disk
         fig1.savefig(figname, rasterized=False)
 
-    def wrapPrepSims(self):
+    def wrapLoadLightcurves(self, Debug=False):
 
-        """Convenience-wrapper to prepare simulations"""
+        """Convenience-wrapper to load lightcurves for simulations and
+        convert magnitude to flux"""
 
         # Customization arguments to be added!
 
         # template lightcurve (to extract the stddev for the
         # simulation)
         self.lcTemplateFromFile(refMag=self.refMag, refFlux=self.refFlux)
-        self.getTemplateStats()
 
-        # for the moment, be verbose about the magnitude conversion
-        print("FakeLC.wrapPrepSims INFO - converting template mag to flux")
-        print("FakeLC.wrapPrepSims INFO - reference flux %.2f, ref mag %.2f" \
-                  % (self.LCtemplate.refFlux, self.LCtemplate.refMag))
+        if Debug:
+            self.getTemplateStats()
+
+            # for the moment, be verbose about the magnitude conversion
+            print("FakeLC.wrapPrepSims INFO - converting template mag to flux")
+            print("FakeLC.wrapPrepSims INFO - ref flux %.2f, ref mag %.2f" \
+                      % (self.LCtemplate.refFlux, self.LCtemplate.refMag))
 
         self.LCtemplate = self.magToFlux(self.LCtemplate)
         self.getTemplateStats()
@@ -872,11 +907,19 @@ class FakeLC(object):
         # output sampling including gaps
         self.lcObsFromFile(refMag=self.refMag, refFlux=self.refFlux)
         self.LCobs = self.magToFlux(self.LCobs)
+
+    def wrapPrepRednoise(self):
+
         self.findObsChunks()
         self.buildOvertimes()
     
         # pick red noise factor
         self.pickRNLfactor()
+
+    def wrapPrepSims(self):
+
+        self.wrapLoadLightcurves()
+        self.wrapPrepRednoise()
 
 class TrialSet(object):
 
@@ -1445,6 +1488,382 @@ class FoM(object):
         self.fomStat = np.sqrt(varDiff)
         
 
+class Domino(object):
+
+    """Straight resampling of v404 lightcurve using historical
+    data."""
+
+    def __init__(self, LCobj=None, doShuffleTiles=False, \
+                     tZero=50000., \
+                     doFlipToMatch=False, \
+                     padFactor=0, \
+                     runOnInit=True):
+
+        """Accepts a lightcurve object, breaks into chunks, and offers
+        various resampling options."""
+
+        self.LC = LCobj  # required input
+        self.doShuffleTiles = doShuffleTiles # control variable
+        self.doFlipToMatch = doFlipToMatch # flip tiles to match?
+        self.tZero = np.float(tZero) # time value of first chain
+                                     # datapoint
+        self.padFactor = padFactor
+        self.rollStep = 2 # for padding. Experiment with this to best
+                          # distribute the source tiles most
+                          # evenly. In principle, 1 or 2 should work
+                          # well.
+
+        # some internal variables
+        self.objTiles = None
+        self.tileLen = 0.7  # days, in most applications will take
+                            # this value
+
+        # housekeeping variables for the original tile IDs and times
+        self.origIDs = np.array([])
+        self.origOrder = np.array([])
+        self.origTimes = np.array([])  # might be redundant
+
+        self.chainIDs = np.array([])  # which tile each obs belongs to
+        self.chainTimes = np.array([])
+        self.chainFLux = np.array([])
+        self.chainUncty = np.array([])
+
+        # DELCgen "Lightcurve" object populated by the chain
+        self.chainLC = None
+
+        # set up the chain object in preparation for construction
+        self.findTiles()
+        self.initChainIDs()
+
+        if runOnInit:
+            self.buildChain()
+            #if self.doShuffleTiles:
+            #    self.shuffleTiles()
+            #self.replicateChain()
+            #self.populateChainValues()
+            #self.chainLCfromArrays()
+
+    def findTiles(self):
+
+        """Breaks the time-series into nights"""
+
+        # (called 'tiles' to avoid namespace collision with the chunks
+        # in other objects)
+        self.objTiles = TimeChunks(self.LC.time, self.tileLen, \
+                                       runOnInit=True)
+        
+        # set some useful instance-level properties
+        self.origIDs = np.copy(self.objTiles.chunkIDs)
+        self.origOrder = np.asarray(\
+            np.unique(np.sort(self.objTiles.chunkIDs)), 'int')
+        self.origTimes = np.copy(self.objTiles.times)
+
+    def initChainIDs(self):
+
+        """Initialises chain IDs from the original IDs"""
+
+        self.chainOrder = np.copy(self.origOrder)
+
+        # (This was originally longer since it did more...)
+
+    def shuffleTiles(self):
+
+        """Randomly reorders the time tiles in the chain"""
+
+        xDum = np.random.uniform(size=np.size(self.origOrder))
+        lDum = np.argsort(xDum)
+        self.chainOrder = self.origOrder[lDum]
+
+    def replicateChain(self):
+
+        """Replicates the chain by padding factor self.nPad, rolling
+        the chain by 1 for each replication. Useful in the case when
+        the observations only cover part of a 24h cycle."""
+
+        if self.padFactor < 1:
+            return
+
+        if len(self.chainOrder) < 1:
+            return
+
+        firstChain = np.copy(self.chainOrder)
+        for iRep in range(self.padFactor-1):
+            chainToAdd = np.roll(firstChain, 0 - (self.rollStep*iRep+1))
+            self.chainOrder = np.hstack(( self.chainOrder, chainToAdd ))
+
+
+    def initChainValues(self):
+
+        """Initializes the chain times, flux, uncties"""
+
+        self.chainTimes = np.array([])
+        self.chainFlux = np.array([])
+        self.chainUncty = np.array([])
+        self.chainIDs = np.array([])
+
+    def populateChainValues(self):
+
+        """Populates the time, flux, uncty values for the chain of
+        tiles"""
+
+        tMax = np.copy(self.tZero)
+        self.initChainValues()
+
+        # we draw from the original set by tile ID, with the ordering
+        # dictated by the reordered set.
+        for iTile in range(len(self.chainOrder)):
+            bThis = self.origIDs == self.chainOrder[iTile]
+
+            if np.sum(bThis) < 1:
+                continue
+
+            # Since we're abutting samples together, we need to
+            # re-compute the times. We subtract off the smallest time
+            # in this tile, and add the median time interval between
+            # datapoints in THIS tile. 
+            tThis = self.origTimes[bThis] - np.min(self.origTimes[bThis])
+            tSort = np.sort(tThis)
+            tThis += np.median(np.abs(tSort - np.roll(tSort, -1)))
+            tThis += tMax
+
+            tMax = np.max(tThis)
+
+            # To help the domino tiles match -- if doFlipToMatch is
+            # set -- find which end of the domino best matches the
+            # tail of the seequence, and abut the closest ends onto
+            # each other.
+            if self.doFlipToMatch and np.size(self.chainFlux) > 1:
+                avgTail = np.mean(self.chainFlux[-6:-1])
+                avgFron = np.mean(self.LC.flux[bThis][0:6])
+                avgBack = np.mean(self.LC.flux[bThis][-6::])
+                if np.abs(avgFron - avgTail) > np.abs(avgBack - avgTail):
+                    tThis = tThis[::-1]
+
+            # we now have our time, flux and uncertainties to slot in.
+            self.chainTimes = np.hstack(( self.chainTimes, tThis ))
+            self.chainFlux = np.hstack(( self.chainFlux, \
+                                             self.LC.flux[bThis] ))
+            self.chainUncty = np.hstack(( self.chainUncty, \
+                                              self.LC.errors[bThis] ))
+
+            theseIDs = np.repeat(self.chainOrder[iTile], np.size(tThis))
+            self.chainIDs = np.hstack(( self.chainIDs, theseIDs ))
+
+    def chainLCfromArrays(self):
+
+        """Populates a DELCgen Lightcurve object with the chain
+        values"""
+
+        # note we do NOT want to simply copy the original tile because
+        # the chain will often have a different number of datapoints.
+        if not hasattr(self.chainLC, 'time'):
+            tBin = np.copy(self.LC.tbin)
+            self.chainLC = DELCgen.Lightcurve( self.chainTimes, \
+                                                   self.chainFlux, \
+                                                   tBin, \
+                                                   self.chainUncty)
+
+            # now we copy across the extra attributes we added
+            self.chainLC.isFlux = np.copy(self.LC.isFlux)
+            self.chainLC.refFlux = np.copy(self.LC.refFlux)
+            self.chainLC.refMag = np.copy(self.LC.refMag)
+
+        else:
+            self.chainLC.time = self.chainTimes
+            self.chainLC.flux = self.chainFlux
+            self.chainLC.errors = self.chainUncty
+
+            # If not initializing, we need to recalculate the
+            # statistics
+            recomputeLCstats(self.chainLC)
+
+        # we will overload the Lightcurve object yet again, this time
+        # with the chainIDs (which will come in handy when debugging
+        # to learn from which tile each output point was drawn)
+        self.chainLC.chainIDs = np.copy(self.chainIDs)
+
+    def buildChain(self):
+
+        """Wrapper to create a new chain once the input data has been
+        appropriately set up"""
+
+        if self.doShuffleTiles:
+            self.shuffleTiles()
+        self.replicateChain()
+        self.populateChainValues()
+        self.chainLCfromArrays()
+
+class Counterfeiter(object):
+
+    """Makes an imperfect copy of a lightcurve by sampling at
+    particular points. Uses the DELCgen.Lightcurve object for
+    convenience"""
+
+    def __init__(self, LCtemplate=None, LCobs=None, \
+                     interpKind='nearest'):
+
+        """Initialize"""
+    
+        # the template and "observation" lightcurve objects
+        self.LCtemplate = LCtemplate
+        self.LCobs = LCobs
+
+        # Lightcurve containing the sample
+        self.LCsample = None
+
+        ## Housekeeping attributes
+        self.tDiffsObs = np.array([]) # deltas from start point
+        self.tStartMin = -99.
+        self.tStartMax = -99.
+
+        # the interpolation objects
+        self.interpFlux = None
+        self.interpUncty = None
+        self.interpID = None # useful to trace tile provenance
+        self.interpKind = interpKind[:] # trust the user to know what
+                                        # this is
+
+        # should we perturb the interpolate by the uncertainty after
+        # drawing it? (Not always warranted, e.g. if we're selecting
+        # the nearest point only)
+        self.doApplyUncty = False
+
+        # now for the time samples
+        self.sampleTimes = np.array([])
+        self.sampleFlux = np.array([])
+        self.sampleUncty = np.array([])
+        self.sampleIDs = np.array([])
+
+        # Common initialization tasks
+        self.findObsTimediffs()
+        self.setTimeBounds()
+        self.setupInterpolation()
+
+    def setTimeBounds(self):
+
+        """The time lengths of the template and observation
+        lightcurves set limits on how close to the edge we can set our
+        start and stop times for the sample lightcurve."""
+        
+        obsDuration = np.max(self.LCobs.time) - np.min(self.LCobs.time)
+        self.tStartMin = np.min(self.LCtemplate.time)
+        self.tStartMax = np.max(self.LCtemplate.time) - obsDuration
+
+        # build a half-hour buffer into the max start
+        self.tStartMax -= 0.5/1440.
+
+    def findObsTimediffs(self):
+
+        """Turns all the observation times into time-diffs from the
+        first datapoint"""
+
+        self.tDiffsObs = self.LCobs.time - np.min(self.LCobs.time)
+
+    def initSampleLC(self):
+
+        """Initialises the sampling lightcurve"""
+
+        # fortunately, this is easy!
+        self.LCsample = copy.deepcopy(self.LCobs)
+
+    def plantSampleTimes(self, t0=-99.):
+
+        """Places a set of sample times using the observational time
+        differences but starting at t0. If t0 unset, generates a new
+        one from the bounds"""
+
+        # I envisage this being called from a method that has already
+        # generated a set of random start times. However, let's give
+        # this the option to set its own (this is also a good time to
+        # apply quality control to the input start time).
+        if t0 < 0 or \
+                t0 < self.tStartMin or \
+                t0 > self.tStartMax:
+            t0 = np.random.uniform(self.tStartMin, self.tStartMax)
+            
+        self.sampleTimes = self.tDiffsObs + t0
+
+    def drawSampleValues(self):
+
+        """Uses the interpolators to draw samples of the lightcurve at
+        the given times in the sample."""
+        
+        self.sampleFlux = self.interpFlux(self.sampleTimes)
+        self.sampleUncty = self.interpUncty(self.sampleTimes)
+        self.sampleIDs = self.interpID(self.sampleTimes)
+
+        if not self.doApplyUncty:
+            return
+
+        dY = np.random.normal(size=np.size(self.sampleUncty)) \
+            * self.sampleUncty
+
+        self.sampleFlux += dY
+
+    def passSampleToLC(self):
+
+        """Passes the current sample to the sample lightcurve
+        object"""
+
+        if not hasattr(self.LCsample, 'time'):
+            self.initSampleLC()
+
+        self.LCsample.time = self.sampleTimes
+        self.LCsample.flux = self.sampleFlux
+        self.LCsample.errors = self.sampleUncty
+
+        # we recompute the statistics...
+        recomputeLCstats(self.LCsample)
+
+        #... and overload with our interpolated ID value
+        self.LCsample.chainID = self.sampleIDs
+
+    def makeSample(self, t0=-99):
+
+        """Wrapper - plants sample times, draws sample values and
+        passes the results up to the sample lightcurve object"""
+
+        self.plantSampleTimes(t0)
+        self.drawSampleValues()
+        self.passSampleToLC()
+
+    def setupInterpolation(self):
+
+        """Sets up the interpolation objects for flux and uncertainty
+        once the template lightcurve is populated """
+
+        self.interpFlux = interpolate.interp1d(\
+            self.LCtemplate.time, self.LCtemplate.flux, \
+                kind=self.interpKind, \
+                copy=False)
+
+        self.interpUncty = interpolate.interp1d(\
+            self.LCtemplate.time, self.LCtemplate.errors, \
+                kind=self.interpKind, \
+                copy=False)
+
+        # Also useful to interpolate the original ID (so that we can
+        # learn what coverage we are achieving.
+        if not hasattr(self.LCtemplate, 'chainIDs'):
+            return
+
+        self.interpID = interpolate.interp1d(\
+            self.LCtemplate.time, self.LCtemplate.chainIDs, \
+                kind='nearest', \
+                copy=False)
+
+def recomputeLCstats(LC=None):
+
+    """General method to re-perform the statistics for a DELCgen
+    lightcurve. Modifies the Lightcurve object in-place."""
+
+    LC.mean = np.mean(LC.flux)
+    LC.std = np.std(LC.flux)
+    LC.length = len(LC.flux)
+    LC.freq = np.arange(1, LC.length/2.0 + 1)/(LC.length*LC.tbin)
+
+    # this --should-- modify in place. Let's see if it does.
+
 def binData(tIn=np.array([]), yIn=np.array([]), \
                 nBins=100, nMin=2, \
                 eIn=np.array([]), \
@@ -1751,7 +2170,7 @@ def testCompact(nTrials=1, gapMin=0.7, \
     magnitude and using the error-corrected standard deviation as a
     figure of merit:
 
-    sample404.testCompact(4, doDetrend=True, detDeg=0, actOnFlux=False, choiceFom='quadDiff')
+    v404_sample.testCompact(4, doDetrend=True, detDeg=0, actOnFlux=False, choiceFom='quadDiff')
 
     """
 
@@ -1792,3 +2211,148 @@ def testFluxConversion(filRef='92Binned.fits'):
     FF.getTemplateStats()
 
     print FF.LCtemplate.isFlux
+
+def testDominoes(filHistoric='92Binned.fits', \
+                     filSamples='17Binned.fits', \
+                     padFac=2, interpKind='nearest', \
+                     doApplyUncty = False):
+
+    """Tester for the direct resampling using 'dominoes' and
+    interpolation using the 'Counterfeiter'"""
+
+    # This includes diagnostic plots and timing lines so is somewhat
+    # messy.
+
+    # set up our methods for lightcurve object handling, passing
+    # arguments appropriate for our 'historic' file as input arguments
+    FL = FakeLC(filTemplate=filHistoric, \
+                    filSamples=filSamples, \
+                    keyObsTime='tBin', \
+                    keyObsFlux='fBin', \
+                    keyObsUnct='uBin', \
+                    tSamplesFactor = 1.0)
+
+    # 2019-07-05 (WIC) - I think this should be the default.
+    FL.errDivisorTemplate = 3.
+    
+    FL.wrapLoadLightcurves()
+
+    # Convert to flux and set up the template 
+    #FL.lcTemplateFromFile(isMag=True)
+    #FL.LCtemplate = FL.magToFlux(FL.LCtemplate)  # converts in-place
+    #FL.getTemplateStats()
+
+    ## load the observations file containing the times (or more
+    ## importantly the time-differences) that will correspond to our
+    ## samples.
+    #FL.lcObsFromFile()
+    #FL.LCobs = FL.magToFlux(FL.LCobs)
+
+    # now set up the dominoes object. For testing, do one set with and
+    # the other without shuffling.
+    DOM = Domino(FL.LCtemplate, runOnInit=True, doShuffleTiles=False)
+
+    tZer = time.time()
+    DOMSHUF = Domino(FL.LCtemplate, runOnInit=True, doShuffleTiles=True, \
+                         doFlipToMatch=True, padFactor=padFac)
+
+    print("testDominoes INFO - time to set the chain to copy: %.3e s" \
+              % (time.time() - tZer))
+
+    # now let's see how long this takes to rebuild a chain after
+    # initialization
+    tZer = time.time()
+    DOMSHUF.buildChain()
+    print("testDominoes INFO - time to rebuild chain: %.3e" \
+              % (time.time() - tZer))
+
+    tPreSet = time.time()
+    # now we try setting up a resampling.
+    CF = Counterfeiter(DOMSHUF.chainLC, FL.LCobs, interpKind)
+
+    # I don't trust nudging if we're just finding the
+    # nearest. However, for testing purposes, let's give ourselves the
+    # chance to toggle it as input arguments
+    #CF.doApplyUncty = interpKind.find('nearest') < 0
+    CF.doApplyUncty = doApplyUncty
+
+    CF.initSampleLC()
+
+    tZer = time.time()
+    print("testDominoes INFO - time to set up Counterfeiter: %.3e s" \
+              % (tZer - tPreSet))
+    CF.makeSample()
+    print("testDominoes INFO - time to draw a single sample: %.3e s" \
+              % (time.time() - tZer))
+
+    # try the second time through.
+    # CF.makeSample()
+
+    #CF.plantSampleTimes()
+    #CF.drawSampleValues()
+    #CF.passSampleToLC()
+
+    # debug - print the list of tile-orderings
+    ##print DOM.chainOrder
+    ##print DOMSHUF.chainOrder
+
+    # build the figure size programmatically
+    figSz = (10,4)
+    figSz2 = np.copy(figSz)
+    figSz2[0] /= 2.
+    cmap = plt.cm.prism
+
+    fig1 = plt.figure(1, figsize=figSz)
+    fig1.clf()
+    ax1 = fig1.add_subplot(121)
+    dum1 = ax1.errorbar(DOM.chainTimes, DOM.chainFlux, \
+                            DOM.chainUncty, \
+                            ms=.1, zorder=3, ecolor='0.6', \
+                            ls='none')
+    dum12 = ax1.scatter(DOM.chainTimes, DOM.chainFlux, \
+                            c=DOM.chainIDs, zorder=10, \
+                            cmap=cmap, s=9, \
+                            edgecolor='0.5')
+
+    ax2 = fig1.add_subplot(122)
+    dum2 = ax2.errorbar(DOMSHUF.chainTimes, DOMSHUF.chainFlux, \
+                            DOMSHUF.chainUncty, \
+                            ms=.1, zorder=3, ecolor='0.6', \
+                            ls='none', alpha=0.3)
+    dum22 = ax2.scatter(DOMSHUF.chainTimes, DOMSHUF.chainFlux, \
+                            c=DOMSHUF.chainIDs, zorder=10, \
+                            cmap=cmap, s=9, \
+                            edgecolor='0.5', alpha=0.3)
+
+
+    # if we have interpolates, draw them!
+    if np.size(CF.sampleUncty) < 1:
+        return
+
+    dumOver = ax2.errorbar(CF.sampleTimes, CF.sampleFlux, \
+                               CF.sampleUncty, \
+                               color='0.1', alpha=0.7, \
+                               zorder=15, \
+                               linestyle='None', \
+                               ecolor='0.5')
+    dumOverScatt = ax2.scatter(CF.sampleTimes, CF.sampleFlux, \
+                                   c='k', edgecolor='0.5', \
+                                   s=16, zorder=20)
+
+    # now let's make another figure, this time showing the sampled
+    # lightcurve ONLY.
+    fig2 = plt.figure(2, figsize=figSz)
+    fig2.clf()
+    ax3 = fig2.add_subplot(121)
+    dumSample = ax3.errorbar(CF.sampleTimes, CF.sampleFlux, \
+                               CF.sampleUncty, \
+                               color='0.5', alpha=0.5, \
+                               zorder=15, \
+                               linestyle='None', \
+                               ecolor='0.5')
+    dumScatt = ax3.scatter(CF.sampleTimes, CF.sampleFlux, \
+                               c=CF.sampleIDs, edgecolor='0.5', \
+                               s=36, zorder=20, cmap=cmap)
+
+    ax4 = fig2.add_subplot(122)
+    dumHist = ax4.hist(CF.sampleIDs, range=(0,20))

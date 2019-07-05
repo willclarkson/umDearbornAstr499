@@ -1508,7 +1508,7 @@ class Domino(object):
         self.tZero = np.float(tZero) # time value of first chain
                                      # datapoint
         self.padFactor = padFactor
-        self.rollStep = 2 # for padding. Experiment with this to best
+        self.rollStep = 1 # for padding. Experiment with this to best
                           # distribute the source tiles most
                           # evenly. In principle, 1 or 2 should work
                           # well.

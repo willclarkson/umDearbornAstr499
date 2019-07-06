@@ -815,6 +815,7 @@ class FakeLC(object):
             figSz = (7,8)
 
         fig1 = plt.figure(1)
+        fig1.clf()
         fig1.set_size_inches(*figSz, forward=True)
         fig1.clf()
 
@@ -922,6 +923,10 @@ class FakeLC(object):
         self.lcObsFromFile(refMag=self.refMag, refFlux=self.refFlux)
         self.LCobs = self.magToFlux(self.LCobs)
 
+        # initialize the bObs array. If we're building with gaps, it
+        # will be rebuilt later.
+        self.bObs = np.isfinite(self.LCobs.time)
+
     def wrapPrepRednoise(self):
 
         self.findObsChunks()
@@ -943,6 +948,10 @@ class FakeLC(object):
         self.prepChainToCopy()
         self.prepChainCopy()
 
+        # The following is for backward compatibility with the RNL
+        # version. This should probably be locked down...
+        self.LCblank = copy.deepcopy(self.LCobs)
+
     def prepChainToCopy(self):
 
         """Prepares an optionally-shuffled abutted chain out of the
@@ -960,9 +969,12 @@ class FakeLC(object):
         """Initializes and prepares the 'counterfeit' copy of the
         observation chain"""
 
+        # inherit some of the settings from this FakeLC object
+
         self.chainCopy = Counterfeiter(self.chainOrig.chainLC, \
                                            self.LCobs, \
                                            self.chainInterpKind)
+        self.chainCopy.doApplyUncty = self.pertByMeasureUncty
         self.chainCopy.initSampleLC()
 
     def sampleChain(self):
@@ -988,7 +1000,8 @@ class TrialSet(object):
                      nReport = 5, gapMin=999, \
                      doDetrend=False, detDeg=0, \
                      actOnFlux=True, \
-                     choiceFom='simpleStd'):
+                     choiceFom='simpleStd', \
+                     doCounterfeit=False):
 
         self.nTrials = nTrials
         
@@ -1026,6 +1039,9 @@ class TrialSet(object):
         # *name* of the method used as figure of merit
         self.nameFomUsed = 'BLANK' # easily-recognizable default
 
+        # resampling method
+        self.doCounterfeit = doCounterfeit
+
         # time range covered by the requested sampling
         self.timeRangeSample = 0.
 
@@ -1058,9 +1074,17 @@ class TrialSet(object):
                                      % (iTrial, self.nTrials))
                 sys.stdout.flush()
 
-            self.FakeTrial.sampleNoiseModel()
-                
+            # Generate this trial's sample, using whichever method
+            # we've selected.
+            if not self.doCounterfeit:
+                self.FakeTrial.sampleNoiseModel()
+            else:
+                self.FakeTrial.sampleChain()
+
+            # (Not sure yet what the counterfeit debug plot will look
+            # like, so we don't bother with the plot in that instance.)
             if iTrial < 1:
+# and not self.doCounterfeit:
                 print("TrialSet.doTrials INFO - plotting %i..." \
                               % (iTrial))
                 self.FakeTrial.showLC()
@@ -1119,6 +1143,44 @@ class TrialSet(object):
 
         # Now for some more detailed parameters on the
         # simulation. 
+        self.hdr['pertUnc'] = (self.FakeTrial.pertByMeasureUncty, \
+                                   "Simulation perturbed by obs uncertainty")
+
+        self.hdr['filSampl'] = (self.FakeTrial.filSamples, \
+                                    "Obsn file for sample and/or flux, uncty")
+        self.hdr['filTempl'] = (self.FakeTrial.filTemplate, \
+                                    "Template lc for simulation")
+
+        # just so that we can trace the provenence of the mags and
+        # fluxes:
+        self.hdr['isFlux'] = (self.FakeTrial.LCsample.isFlux, \
+                                  "Statistic evaluated on flux lightcurve" )
+        self.hdr['refMag'] = (self.FakeTrial.LCsample.refMag, \
+                                  "Reference apparent mag")
+        self.hdr['refFlux'] = (self.FakeTrial.LCsample.refFlux, \
+                                   "Reference flux")
+
+        # Was detrending done?
+        self.hdr['detrend'] = (self.doDetrend, \
+                                   "Samples detrended before evaluating FoM")
+        if self.doDetrend:
+            self.hdr['detDeg'] = (self.detDeg, \
+                                      "Detrending factor for samples")
+
+        # which version of the simulation did we do?
+        self.hdr['doCntrft'] = (self.doCounterfeit, \
+                                    'Samples drawn directly from template data')
+        if self.doCounterfeit:
+            self.hdr['sampling'] = ('Counterfeit', 'Resampling method')
+            self.populateHeaderCounterfeit()
+        else:
+            self.hdr['sampling'] = ('TimmerKoenig', 'Resampling method')
+            self.populateHeaderRednoise()
+        
+    def populateHeaderRednoise(self):
+
+        """Get the header parameters for rednoise simulations"""
+
         self.hdr['rnMeth'] = ( self.FakeTrial.methPSD.__name__, \
                                    "PSD simulation method")
         self.hdr['rnStd'] = ( self.FakeTrial.sampleStd, \
@@ -1142,32 +1204,45 @@ class TrialSet(object):
                                      commen)
 
         # some simulation control variables
-        self.hdr['pertUnc'] = (self.FakeTrial.pertByMeasureUncty, \
-                                   "Simulation perturbed by obs uncertainty")
-        self.hdr['filSampl'] = (self.FakeTrial.filSamples, \
-                                    "Obsn file for sample and/or flux, uncty")
-        self.hdr['filTempl'] = (self.FakeTrial.filTemplate, \
-                                    "Template lc for simulation")
         self.hdr['uObsFl'] = (self.FakeTrial.useObsFlux, \
                                   "Obsn used for flux")
         self.hdr['uObsErr'] = (self.FakeTrial.useObsUncty, \
                                    "Obsn used for uncertainties")
 
-        # just so that we can trace the provenence of the mags and
-        # fluxes:
-        self.hdr['isFlux'] = (self.FakeTrial.LCsample.isFlux, \
-                                  "Statistic evaluated on flux lightcurve" )
-        self.hdr['refMag'] = (self.FakeTrial.LCsample.refMag, \
-                                  "Reference apparent mag")
-        self.hdr['refFlux'] = (self.FakeTrial.LCsample.refFlux, \
-                                   "Reference flux")
+    def populateHeaderCounterfeit(self):
 
-        # Was detrending done?
-        self.hdr['detrend'] = (self.doDetrend, \
-                                   "Samples detrended before evaluating FoM")
-        if self.doDetrend:
-            self.hdr['detDeg'] = (self.detDeg, \
-                                      "Detrending factor for samples")
+        """Populates header parameters for the Counterfeiting case"""
+
+        # Information about the 'domino' template used
+        # some more of the variables we reach down to the domino/chain
+        # object
+
+        # convenience-variables to minimize typoes
+        objDomino = self.FakeTrial.chainOrig
+        objChain = self.FakeTrial.chainCopy
+
+        self.hdr['dmPadFac'] = (objDomino.padFactor, \
+                                    'Padding factor used for domino')
+        self.hdr['dmRoll'] = (objDomino.rollStep, \
+                                   'Domino roll step when padding')
+        self.hdr['dmTilLen'] = (objDomino.tileLen, \
+                                    'Domino max gap for chunking')
+        self.hdr['dmNtiles'] = (len(objDomino.chainOrder), \
+                                    'Number of tiles in chain')
+        self.hdr['dmDoFlip'] = (self.FakeTrial.chainDoFlip, \
+                                    'Dominoes flipped for match in chain')
+        self.hdr['dmRemake'] = (self.FakeTrial.chainRebuildEachSample, \
+                                    'Dominoes re-shuffled for each sample')
+
+        # information about the counterfeiter settings that were used
+        self.hdr['chShuffl'] = (self.FakeTrial.chainDoShuffle, \
+                                    'Observation nights reordered for chain')
+
+        self.hdr['chUseUnc'] = (objChain.doApplyUncty, \
+                                    'Samples perturbed by meas uncertainty')
+        self.hdr['chInterp'] = (self.FakeTrial.chainInterpKind, \
+                                    'Interpolation used for chain')
+
 
     def writeTrials(self):
 
@@ -1582,6 +1657,7 @@ class Domino(object):
         self.origTimes = np.array([])  # might be redundant
 
         self.chainIDs = np.array([])  # which tile each obs belongs to
+        self.chainOrder = np.array([]) 
         self.chainTimes = np.array([])
         self.chainFLux = np.array([])
         self.chainUncty = np.array([])
@@ -2189,7 +2265,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
                     doDetrend=False, detDeg=0, \
                     actOnFlux=True, \
                     choiceFom='simpleStd', \
-                    testFits = False):
+                    testFits = False, \
+                    doRednoise = True):
 
     """Performs the simulation. Arguments:
 
@@ -2221,6 +2298,9 @@ def testCompact(nTrials=1, gapMin=0.7, \
     testFits -- test the use of uncertainties from 2017 binned
     lightcurve? (Under development)
 
+    doRednoise -- generate samples with rednoise model? (The alternative
+    is to draw samples directly from the previous observations.)
+
     --
     
     Example call to generate 4 trials, with constant-level
@@ -2246,13 +2326,18 @@ def testCompact(nTrials=1, gapMin=0.7, \
         FLC.useObsFlux=False
 
     # prepare for simulations
-    FLC.wrapPrepSims()
+    if doRednoise:
+        FLC.wrapPrepSims()
+    else:
+        FLC.wrapLoadLightcurves()
+        FLC.wrapPrepChain()
 
     # now use an instance of our TrialSet class to run the iterations
     TS = TrialSet(nTrials, FakeTrial=FLC, gapMin=gapMin, \
                       doDetrend=doDetrend, detDeg=detDeg, \
                       actOnFlux = actOnFlux, \
-                      choiceFom = choiceFom[:])
+                      choiceFom = choiceFom[:], \
+                      doCounterfeit = not(doRednoise))
     TS.doTrials()
     TS.writeTrials()
 

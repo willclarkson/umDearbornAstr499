@@ -146,6 +146,20 @@ class FakeLC(object):
         # correspond to observations
         self.bObs = np.array([])
 
+        # As an alternative to generating observations from a
+        # parametric model, we might just create counterfeit copies of
+        # the observed dataset. Objects "Domino" and "Counterfeiter"
+        # hold the template chain and methods, and the routine that
+        # resamples them, respectively. A few control variables follow
+        self.chainOrig = None
+        self.chainCopy = None
+        self.chainPadFac = 3
+        self.chainDoShuffle = True
+        self.chainDoFlip = True
+        self.chainInterpKind = 'nearest'
+        self.chainRebuildEachSample = False # rebuild the chain for
+                                            # each sample?
+
         # a few parameters for picking the red noise simulation length
         self.rnlMax=105
         self.rnlMin=89
@@ -920,6 +934,50 @@ class FakeLC(object):
 
         self.wrapLoadLightcurves()
         self.wrapPrepRednoise()
+
+    def wrapPrepChain(self):
+
+        """One-liner to prepare the Domino and Counterfeiter
+        objects"""
+
+        self.prepChainToCopy()
+        self.prepChainCopy()
+
+    def prepChainToCopy(self):
+
+        """Prepares an optionally-shuffled abutted chain out of the
+        template observations."""
+
+        self.chainOrig = Domino(self.LCtemplate, runOnInit=True, \
+                                    doShuffleTiles=self.chainDoShuffle, \
+                                    doFlipToMatch=self.chainDoFlip, \
+                                    padFactor=self.chainPadFac)
+
+        self.chainOrig.buildChain()
+
+    def prepChainCopy(self):
+
+        """Initializes and prepares the 'counterfeit' copy of the
+        observation chain"""
+
+        self.chainCopy = Counterfeiter(self.chainOrig.chainLC, \
+                                           self.LCobs, \
+                                           self.chainInterpKind)
+        self.chainCopy.initSampleLC()
+
+    def sampleChain(self):
+
+        """Draws a sample from the chain"""
+
+        if self.chainRebuildEachSample:
+            self.chainOrig.buildChain()
+            self.prepChainCopy()
+
+        self.chainCopy.makeSample()
+
+        # and ensure the fake lightcurve object uses the result as its
+        # sample
+        self.LCsample = self.chainCopy.LCsample
 
 class TrialSet(object):
 
@@ -2232,7 +2290,8 @@ def testDominoes(filHistoric='92Binned.fits', \
                     keyObsUnct='uBin', \
                     tSamplesFactor = 1.0)
 
-    # 2019-07-05 (WIC) - I think this should be the default.
+    # 2019-07-05 (WIC) - I think this should be the default. (Update:
+    # have made 3 the default in the FakeLC object.)
     FL.errDivisorTemplate = 3.
     
     FL.wrapLoadLightcurves()
@@ -2284,6 +2343,15 @@ def testDominoes(filHistoric='92Binned.fits', \
     CF.makeSample()
     print("testDominoes INFO - time to draw a single sample: %.3e s" \
               % (time.time() - tZer))
+
+    # 2019-07-06 - try the above from within the FakeLightcurve object
+    # (which now uses the Domino and Counterfeiter objects)
+    FL.wrapPrepChain()
+    FL.sampleChain()
+
+    # try passing a reference to the FL version to assess the output
+    DOMSHUF = FL.chainOrig
+    CF = FL.chainCopy
 
     # try the second time through.
     # CF.makeSample()

@@ -39,6 +39,9 @@ from astropy.io import fits
 # For interpolation of existing data into a sample
 from scipy import interpolate
 
+# for sigma-clipped statistics on the trials
+from astropy.stats import sigma_clip
+
 class FakeLC(object):
 
     """Object to hold fake lightcurve parameters and samples"""
@@ -2073,6 +2076,150 @@ def binData(tIn=np.array([]), yIn=np.array([]), \
     # only return the complete bins
     return tBin[bBin], yBin[bBin], eBin[bBin]
 
+class AssessTrials(object):
+
+    """Produce summary statistics from a set of simulation trials"""
+
+    def __init__(self, pathTrials=''):
+
+        # path to trials file
+        self.pathTrials = pathTrials[:]
+
+        # Some control variables
+        self.clipIters = 5
+        self.clipSigma = 3.0
+        self.Verbose=True
+
+        # some internal variables
+        self.aClip = np.ma.array([])
+
+        # Name of the FoM used
+        self.nameFom = 'DUMMY'
+
+        # standard tasks on initialization
+        self.initStats()
+        self.loadTrials()
+        self.clipTrials()
+        self.evalStats()
+
+    def loadTrials(self):
+
+        """Loads the trials to memory"""
+
+        # Initialize
+        self.hdr = fits.Header()
+        self.aTrials = np.array([])
+
+        if len(self.pathTrials) < 2:
+            if self.Verbose:
+                print("AssessTrials.loadTrials WARN - pathTrials not set.")
+            return
+
+        try:
+            self.aTrials, self.hdr = fits.getdata(self.pathTrials, \
+                                                      header=True)
+        except:
+            if self.Verbose:
+                print("AssessTrials.loadTrials WARN - cannot read path %s" \
+                          % (self.pathTrials))                
+
+        # If we got here, let's get the name of the FoM used
+        self.nameFom = self.hdr['FOMUSED']
+
+    def initStats(self):
+
+        """Initialize the statistics"""
+
+        self.stdClip = -99.
+        self.meanClip = -99.
+        self.medianClip = -99.
+
+    def clipTrials(self):
+
+        """Sigma-clip the trials"""
+
+        # astropy's sigma_clip has the nice feature that it can be
+        # performed along a single axis. We take advantage of that here
+        self.aClip = sigma_clip(self.aTrials, \
+                                    iters=self.clipIters, \
+                                    sigma=self.clipSigma, axis=1)
+
+    def evalStats(self):
+
+        """Evaluates the statistics along the long axis of the
+        trials"""
+
+        self.medianClip = np.ma.median(self.aClip, axis=0)
+        self.meanClip = np.ma.mean(self.aClip, axis=0)
+        self.stdClip = np.ma.std(self.aClip, axis=0)
+        self.nGood = np.ma.sum(1-self.aClip.mask, axis=0)
+
+    def showTrials(self, figName='testTrials_scatter.png'):
+
+        """Debug routine to show the trials"""
+
+        nChunks = np.shape(self.aTrials)[-1]
+
+        plt.style.use('ggplot')
+
+        fig1 = plt.figure(1)
+        fig1.clf()
+        
+        fig1.subplots_adjust(hspace=0.1)
+
+        axRef = None
+        for iChunk in range(nChunks):
+            if iChunk < 1:
+                thisAx = fig1.add_subplot(nChunks, 1, iChunk+1)
+                axRef = thisAx
+
+                thisAx.set_title(r'%s: %i iterations @ %.1f$\sigma$ clipping' \
+                                     % (self.nameFom, self.clipIters, \
+                                            self.clipSigma))
+            else:
+                thisAx = fig1.add_subplot(nChunks, 1, iChunk+1, \
+                                              sharex=axRef)
+
+            dum = thisAx.plot(self.aTrials[:,iChunk], \
+                                  ls='None', \
+                                  marker='.', \
+                                  alpha=0.25, \
+                                  ms=3, label='Raw', \
+                                  zorder=5, color='b')
+
+            dumClip = thisAx.plot(self.aClip[:,iChunk], \
+                                      ls='None', \
+                                      marker='.', \
+                                      alpha=0.5, \
+                                      ms=5, label='Clipped', \
+                                      zorder=10, color='r')
+
+            thisAx.set_ylabel('Chunk %i' % (iChunk))
+
+            # hide the axis ticks for all but the bottom plot
+            if iChunk < nChunks - 1:
+                plt.setp(thisAx.get_xticklabels(), visible=False)
+
+        # legend - for the final plot only
+        leg = thisAx.legend(frameon=True)
+        lFrm = leg.get_frame()
+        lFrm.set_color('white')
+        lFrm.set_alpha(1.0)
+        lFrm.set_zorder(20)
+
+        # for the final one, add a label
+        thisAx.set_xlabel('Trial number', visible=True)
+
+        # save to disk
+        if len(figName) < 3:
+            return
+        if figName.find('.') < 0:
+            if self.Verbose:
+                print("AssessTrials.showTrials WARN - figname does not include a type: %s" % (figName))
+            return
+        
+        fig1.savefig(figName, rasterized=True)
+
 def testFakeLC(sampleFil=''):
 
     """Tests the functionality of the fake lc generator"""
@@ -2265,7 +2412,7 @@ def testCompact(nTrials=1, gapMin=0.7, \
                     doDetrend=False, detDeg=0, \
                     actOnFlux=True, \
                     choiceFom='simpleStd', \
-                    testFits = False, \
+                    testFits = True, \
                     doRednoise = True):
 
     """Performs the simulation. Arguments:
@@ -2509,3 +2656,14 @@ def testDominoes(filHistoric='92Binned.fits', \
 
     ax4 = fig2.add_subplot(122)
     dumHist = ax4.hist(CF.sampleIDs, range=(0,20))
+
+def testAssess(pathTrials='tmp_trialStats_chunks.fits'):
+
+    """Test the methods to assess the trial set"""
+
+    ST = AssessTrials(pathTrials)
+    ST.showTrials()
+
+    print ST.nameFom
+
+    print ST.medianClip, ST.meanClip, ST.stdClip, ST.nGood

@@ -22,6 +22,31 @@
 # (ii) A simple class to perform the output comparison. This would do
 # the nice plots for the paper. AMB will likely have thoughts on this!
 
+# 2019-07-08 WIC - some bugs to fix:
+#
+# (i) non-rednoise mag/flux flag not accurate when reaching TrialSet FIXED.
+#
+# (ii) Want to plot the simulated data in the manner of the six-panel
+# Night-N (that's in lcPlot)
+#
+# (iii) Non-perturbation flag of uncertainty may not reflect what was
+# actually done.
+#
+# (iv) Double-check that the detrending actually works!!!  FIXED
+#
+# HAVE SELECTED THE CORRECT INPUT COLUMN THIS TIME
+# 
+# TODO - try sampling zurita with zurita
+#
+# TODO - check whether using the correct obs uncertainties
+
+# 2019-07-08 - result of Austin meeting:
+#
+# (i) we DO want to do the red noise slope as a FoM alongside the quad diff
+#
+# (ii) apply quad diff to the magnitudes (not fluxes)  -- FIXED. 
+
+
 import os, sys, time
 import copy
 import numpy as np
@@ -238,7 +263,7 @@ class FakeLC(object):
         # transfer the data to the separate arrays and to the
         # LCtemplate object
         self.tTemplate = tTempl['tBin']
-        self.yTemplate = tTempl['fBin']
+        self.yTemplate = tTempl['fBinSub'] # 2019-07-08
         self.eTemplate = tTempl['uBin'] / self.errDivisorTemplate
 
         self.LCtemplate = DELCgen.Lightcurve(\
@@ -1002,6 +1027,7 @@ class TrialSet(object):
                      filStats='tmp_trialStats.fits', \
                      nReport = 5, gapMin=999, \
                      doDetrend=False, detDeg=0, \
+                     keepDetrended=False, \
                      actOnFlux=True, \
                      choiceFom='simpleStd', \
                      doCounterfeit=False):
@@ -1038,6 +1064,7 @@ class TrialSet(object):
         # Detrending information
         self.doDetrend = doDetrend
         self.detDeg = detDeg
+        self.keepDetrended = keepDetrended
 
         # *name* of the method used as figure of merit
         self.nameFomUsed = 'BLANK' # easily-recognizable default
@@ -1077,6 +1104,9 @@ class TrialSet(object):
                                      % (iTrial, self.nTrials))
                 sys.stdout.flush()
 
+            # 2019-07-08 debug lines
+            # print "DEBUG 0", self.FakeTrial.LCblank.isFlux
+
             # Generate this trial's sample, using whichever method
             # we've selected.
             if not self.doCounterfeit:
@@ -1093,17 +1123,37 @@ class TrialSet(object):
                 self.FakeTrial.showLC()
                 print("... done.")
 
-            # Convert the fake lightcurve to flux before acting on
-            # it. Note that the magToFlux and fluxToMag methods do
-            # nothing if the inputs are already in the desired output
-            # unit.
+            # 2019-07-08 WIC - a couple of debug lines added
+            #print "HERE 0:", self.FakeTrial.LCsample.isFlux, \
+            #    np.median(self.FakeTrial.LCsample.flux)
+
+            # Ensure the trial lightcurve is in the appropriate systen
+            # (flux or magnitude) depending on the self.actOnFlux
+            # attribute.
             if self.actOnFlux:
                 self.FakeTrial.LCsample = self.FakeTrial.magToFlux(\
-                    self.FakeTrial.LCsample)
+                    self.FakeTrial.LCsample, asCopy=True)
             else:
                 self.FakeTrial.LCsample = self.FakeTrial.fluxToMag(\
-                    self.FakeTrial.LCsample)
-            
+                    self.FakeTrial.LCsample, asCopy=True)
+
+                #print "HERE -1", self.FakeTrial.LCsample.isFlux, np.median(self.FakeTrial.LCsample.flux)
+
+            #print "HERE 1:", self.FakeTrial.LCsample.isFlux, \
+            #    np.median(self.FakeTrial.LCsample.flux)
+
+            # If we are doing chunks, we do them BEFORE we do the full
+            # set so that the piecewise detrending can take place.
+            if doChunks:
+                FS = FoMSet(self.FakeTrial.LCsample, \
+                                self.FakeTrial.bObs, \
+                                gapMin=self.gapMin, \
+                                doDetrend=self.doDetrend, \
+                                detDeg=self.detDeg, \
+                                keepDetrended=self.keepDetrended, \
+                                choiceFom=self.choiceFom, \
+                                runOnInit=True)
+                self.aStats = self.accumArrays(self.aStats, FS.aFoms)
 
             FSall = FoMSet(self.FakeTrial.LCsample, \
                                self.FakeTrial.bObs, \
@@ -1114,16 +1164,6 @@ class TrialSet(object):
                                runOnInit=True)
             self.aStatsAll = self.accumArrays(self.aStatsAll, FSall.aFoms)
 
-            if doChunks:
-                FS = FoMSet(self.FakeTrial.LCsample, \
-                                self.FakeTrial.bObs, \
-                                gapMin=self.gapMin, \
-                                doDetrend=self.doDetrend, \
-                                detDeg=self.detDeg, \
-                                choiceFom=self.choiceFom, \
-                                runOnInit=True)
-                self.aStats = self.accumArrays(self.aStats, FS.aFoms)
-                
         # get the name of the method used for the fom (we might
         # normally specify this here too, but this way we read even if
         # the default was used)
@@ -1387,7 +1427,8 @@ class FoMSet(object):
     def __init__(self, LCobj=None, bObs=np.array([]), gapMin=999., \
                      parseOnInit=True, runOnInit=True, \
                      doDetrend=False, detDeg=0, \
-                     choiceFom = 'simpleStd'):
+                     choiceFom = 'simpleStd', \
+                     keepDetrended=True):
 
         self.LCobj = LCobj
         self.bObs = np.copy(bObs)
@@ -1423,6 +1464,7 @@ class FoMSet(object):
         # detrending information for FoM
         self.doDetrend = doDetrend
         self.detDeg = detDeg
+        self.keepDetrended = keepDetrended # replace yObs w/detrended?
 
         # setup operations based on input arguments
         if parseOnInit:
@@ -1514,6 +1556,8 @@ class FoMSet(object):
                               runOnInit=False, \
                               choiceFom = self.nameFoM)
             thisFom.chunkID = thisID
+            thisFom.setMethFom()
+            thisFom.detrendY()
             thisFom.calcFoM()
 
             # 2019-06-20 - debug statement to fix a method-location problem
@@ -1523,6 +1567,13 @@ class FoMSet(object):
             # pass the statistic to the holding array
             self.lFoms[iChunk] = thisFom
             self.aFoms[iChunk] = thisFom.fomStat
+
+            # If we want to keep the detrended points from this chunk,
+            # pass them back up
+            if self.keepDetrended:
+                self.yObs[bChunk] = np.copy(thisFom.yObs)
+                self.yFull[self.bObs][bChunk] = np.copy(thisFom.yObs)
+                self.LCobj.flux[self.bObs] = np.copy(self.yFull[self.bObs])
 
         # record the name of the FoM used
         self.nameFoM = self.lFoms[0].methFom.__name__
@@ -1623,6 +1674,11 @@ class FoM(object):
         varDiff = np.std(self.yObs)**2 - np.median(self.eObs)**2
         self.fomStat = np.sqrt(varDiff)
         
+    def simpleMedian(self):
+
+        """Computes the median of the input data"""
+
+        self.fomStat = np.median(self.yObs)
 
 class Domino(object):
 
@@ -2409,7 +2465,9 @@ def testCombinedSample(nTrials=1, gapMin=0.7):
 def testCompact(nTrials=1, gapMin=0.7, \
                     filObstimes='DIA2017.csv', \
                     filTemplate='92Binned.fits', \
-                    doDetrend=False, detDeg=0, \
+                    doDetrend=False, \
+                    detDeg=0, \
+                    keepDetrended=False, \
                     actOnFlux=True, \
                     choiceFom='simpleStd', \
                     testFits = True, \
@@ -2434,6 +2492,10 @@ def testCompact(nTrials=1, gapMin=0.7, \
     doDetrend -- detrend the output data before evaluating the figure of merit?
 
     detDeg = polynomial degree for detrending (if doDetrend is True)
+    
+    keepDetrended -- when detrending each individual chunk, pass the
+    detrended segments back to the main lightcurve object before
+    evaluating the FoM on the full set.
 
     actOnFlux -- ensure the simulation is in "flux" units before
     calculating the fiture of merit? (Otherwise the simulation will be
@@ -2467,9 +2529,10 @@ def testCompact(nTrials=1, gapMin=0.7, \
         FLC.keyObsTime = 'tBin'
         FLC.tSamplesFactor = 1.0
         FLC.keyObsUnct = 'uBin'
-        FLC.keyObsFlux = 'fBin'
-
-        FLC.useObsUncty=False
+        FLC.keyObsFlux = 'fBinSub'
+        FLC.refMag = 0. # 2019-07-08
+        
+        FLC.useObsUncty=True
         FLC.useObsFlux=False
 
     # prepare for simulations
@@ -2518,7 +2581,7 @@ def testDominoes(filHistoric='92Binned.fits', \
     FL = FakeLC(filTemplate=filHistoric, \
                     filSamples=filSamples, \
                     keyObsTime='tBin', \
-                    keyObsFlux='fBin', \
+                    keyObsFlux='fBinSub', \
                     keyObsUnct='uBin', \
                     tSamplesFactor = 1.0)
 
@@ -2581,9 +2644,18 @@ def testDominoes(filHistoric='92Binned.fits', \
     FL.wrapPrepChain()
     FL.sampleChain()
 
+    ## try passing a reference to the FL version to assess the output
+    #DOMSHUF = FL.chainOrig
+    #CF = FL.chainCopy
+
+    # 2019-07-08 let's try converting the curves to magnitude
+    #FL.chainOrig.LC = FL.fluxToMag(FL.chainOrig.LC)
+    #FL.chainCopy.LCobs = FL.fluxToMag(FL.chainCopy.LCobs)
+
     # try passing a reference to the FL version to assess the output
     DOMSHUF = FL.chainOrig
     CF = FL.chainCopy
+
 
     # try the second time through.
     # CF.makeSample()
@@ -2665,5 +2737,4 @@ def testAssess(pathTrials='tmp_trialStats_chunks.fits'):
     ST.showTrials()
 
     print ST.nameFom
-
     print ST.medianClip, ST.meanClip, ST.stdClip, ST.nGood

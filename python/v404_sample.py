@@ -30,7 +30,8 @@
 # Night-N (that's in lcPlot)
 #
 # (iii) Non-perturbation flag of uncertainty may not reflect what was
-# actually done.
+# actually done.  "FIXED" (was not a bug; there was just no argument
+# to change this!)
 #
 # (iv) Double-check that the detrending actually works!!!  FIXED
 #
@@ -42,9 +43,10 @@
 
 # 2019-07-08 - result of Austin meeting:
 #
-# (i) we DO want to do the red noise slope as a FoM alongside the quad diff
+# (i) we DO want to do the red noise slope as a FoM alongside the quad
+# diff IMPLEMENTED.
 #
-# (ii) apply quad diff to the magnitudes (not fluxes)  -- FIXED. 
+# (ii) apply quad diff to the magnitudes (not fluxes) -- FIXED.
 
 
 import os, sys, time
@@ -588,7 +590,7 @@ class FakeLC(object):
         # the simulated object. We'll graft them on here.
         self.LCsample.errors = np.copy(self.LCblank.errors)
 
-        # perturb the results by measurement uncertainty
+        # perturb the results by measurement uncertainty??
         if self.pertByMeasureUncty:
             ePert = np.random.normal(size=np.size(self.LCsample.errors)) \
                 * self.LCsample.errors
@@ -1069,6 +1071,9 @@ class TrialSet(object):
         # *name* of the method used as figure of merit
         self.nameFomUsed = 'BLANK' # easily-recognizable default
 
+        # Dictionary of FoM info (for the output header)
+        self.DFomInfo = {}
+
         # resampling method
         self.doCounterfeit = doCounterfeit
 
@@ -1172,6 +1177,19 @@ class TrialSet(object):
         self.doDetrend = FSall.lFoms[0].detrend
         self.detDeg = FSall.lFoms[0].detDeg
 
+        # header-relevant information about the FoM used. (2019-07-10
+        # WIC note to self: learn how to do inheritence, this is
+        # already getting unwieldy!!)
+        self.DFomInfo = {}
+        if self.nameFomUsed.find('lsSlope') > -1:
+            objFom = FSall.lFoms[-1]
+            for sAttr in ['lsPerMin', 'lsPerMax', 'lsNPer', \
+                              'lsNBin', 'lsDoUseSigmas']:
+                if not hasattr(objFom, sAttr):
+                    continue
+
+                self.DFomInfo[sAttr] = getattr(objFom, sAttr)
+
     def parsToHeader(self):
 
         """Constructs FITS header from the simulation parameters"""
@@ -1179,10 +1197,15 @@ class TrialSet(object):
         self.hdr = fits.Header()
         self.hdr['nTrials'] = (self.nTrials, \
                                    "Number of trial sets run")
-        self.hdr['fomUsed'] = (self.nameFomUsed, \
-                                   "Method used to calculate array contents")
         self.hdr['gapMin'] = ( self.gapAll, \
                                    "Minimum gap between time chunks in output")
+
+        self.hdr['fomUsed'] = (self.nameFomUsed, \
+                                   "Method used to calculate array contents")
+
+        # more detailed information relevant to the figure of merit,
+        # if needed
+        self.populateHeaderFom()
 
         # Now for some more detailed parameters on the
         # simulation. 
@@ -1285,6 +1308,37 @@ class TrialSet(object):
                                     'Samples perturbed by meas uncertainty')
         self.hdr['chInterp'] = (self.FakeTrial.chainInterpKind, \
                                     'Interpolation used for chain')
+
+    def populateHeaderFom(self):
+
+        """Populates the output header with any ancillary information
+        needed about the figure of merit itself"""
+
+        if len(self.DFomInfo.keys()) < 1:
+            return
+
+        lKeys = self.DFomInfo.keys()
+
+        # for the moment, we only care about the keywords below for
+        # one particular choice of FoM:
+        if self.nameFomUsed.find('lsSlope') > -1:
+            if 'lsPerMin' in lKeys:
+                self.hdr['lsPerMin'] = (self.DFomInfo['lsPerMin'], \
+                                            'FoM: Lomb-Scargle min period')
+                if 'lsPerMax' in lKeys:
+                    self.hdr['lsPerMax'] = (self.DFomInfo['lsPerMax'], \
+                                                'FoM: Lomb-Scargle max period')
+                if 'lsNPer' in lKeys:            
+                    self.hdr['lsNPer'] = (self.DFomInfo['lsNPer'], \
+                                              'FoM: number of LS periods')
+
+                if 'lsNBin' in lKeys:
+                    self.hdr['lsNBin'] = (self.DFomInfo['lsNBin'], \
+                                              'FoM: Number of bins for LS slope')
+       
+                if 'lsDoUseSigmas' in lKeys:
+                    self.hdr['lsUseSig']=(self.DFomInfo['lsDoUseSigmas'], \
+                                              'FoM: use stddev within bins when fitting slope')
 
 
     def writeTrials(self):
@@ -1598,12 +1652,23 @@ class FoM(object):
         self.tObs = np.copy(tObs)
         self.yObs = np.copy(yObs)
         self.eObs = np.copy(eObs)
-        
+
+        # the all-important output
         self.fomStat = -99.
+
+        # the optional formal 1-sigma uncertainty of the output
+        self.fomOnesig = -99.
 
         # doing the detrending?
         self.detrend = detrend
         self.detDeg = detDeg
+
+        # some housekeeping parameters if we need the lomb-scargle. 
+        self.lsPerMin = 30.0 / 1440. # days
+        self.lsPerMax = 0.5 # days
+        self.lsNPer = 1000
+        self.lsNBin = 10  # for coarse-binning of the log-periods
+        self.lsDoUseSigmas = False
 
         # choice of FoM (check that it actually works on np arrays)
         self.choiceFom = choiceFom
@@ -1679,6 +1744,44 @@ class FoM(object):
         """Computes the median of the input data"""
 
         self.fomStat = np.median(self.yObs)
+
+    def lsSlope(self):
+
+        """Computes the power index of the binned lomb-scargle of the
+        dataset"""
+
+        # we make the lomb-scargle quantities available to the
+        # instance should we wish to access them (e.g. by plotting to
+        # debug while developing)
+
+        self.lsPer = np.logspace(np.log10(self.lsPerMin), \
+                                     np.log10(self.lsPerMax), \
+                                     self.lsNPer, endpoint=True)
+        self.lsFreq = 1.0 / self.lsPer
+
+        lsFine = LombScargle(self.tObs, self.yObs, self.eObs)
+        self.lsPowFine = lsFine.power(self.lsFreq)
+
+        # now we bin the lomb-scargle
+        logPerFine = np.log10(self.lsPer)
+        logPowFine = np.log10(self.lsPowFine)
+        
+        logPerBin, logPowBin, logSigBin = \
+            binData(logPerFine, logPowFine, self.lsNBin, useMedian=True)
+
+        # now we fit a straight line to this and record the slope
+        wgts = np.ones(np.size(logPowBin))
+        if self.lsDoUseSigmas:
+            wgts = 1.0/logSigBin
+
+        parsBin, parsCov = \
+            np.polyfit(logPerBin, logPowBin, deg=1, w=wgts, cov=True)
+
+        # the slope is the 0th entry
+        self.fomStat = np.float(parsBin[0])
+
+        # somewhat experimental - covariance on the slope
+        self.fomOnesig = np.sqrt(np.abs(parsCov[0][0]))
 
 class Domino(object):
 
@@ -2471,7 +2574,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
                     actOnFlux=True, \
                     choiceFom='simpleStd', \
                     testFits = True, \
-                    doRednoise = True):
+                    doRednoise = True, \
+                    doPertUncty = True):
 
     """Performs the simulation. Arguments:
 
@@ -2509,6 +2613,9 @@ def testCompact(nTrials=1, gapMin=0.7, \
 
     doRednoise -- generate samples with rednoise model? (The alternative
     is to draw samples directly from the previous observations.)
+    
+    doPertUncty -- perturb the simulation by the measurement
+    uncertainty after generating the lightcurve? (Default: True)
 
     --
     
@@ -2532,8 +2639,11 @@ def testCompact(nTrials=1, gapMin=0.7, \
         FLC.keyObsFlux = 'fBinSub'
         FLC.refMag = 0. # 2019-07-08
         
-        FLC.useObsUncty=True
+        FLC.useObsUncty=False
         FLC.useObsFlux=False
+
+    # Apply the uncertainty perturbation choice
+    FLC.pertByMeasureUncty = doPertUncty
 
     # prepare for simulations
     if doRednoise:
@@ -2547,7 +2657,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
                       doDetrend=doDetrend, detDeg=detDeg, \
                       actOnFlux = actOnFlux, \
                       choiceFom = choiceFom[:], \
-                      doCounterfeit = not(doRednoise))
+                      doCounterfeit = not(doRednoise), \
+                      filStats = 'trialStats_%s.fits' % (choiceFom))
     TS.doTrials()
     TS.writeTrials()
 

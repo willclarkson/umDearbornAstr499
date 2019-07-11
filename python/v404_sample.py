@@ -20,7 +20,7 @@
 # output file (so that everything is in the same location);
 #
 # (ii) A simple class to perform the output comparison. This would do
-# the nice plots for the paper. AMB will likely have thoughts on this!
+# the nice plots for the paper. AMB will likely have thoughts on this! DONE.
 
 # 2019-07-08 WIC - some bugs to fix:
 #
@@ -55,7 +55,7 @@ import numpy as np
 import matplotlib.pylab as plt
 plt.style.use('seaborn-whitegrid') # could put this into the object
 
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.stats import LombScargle # for characterization
 from sympy import factorint
 import DELCgen
@@ -95,6 +95,9 @@ class FakeLC(object):
         # optional file containing prior observations we want to
         # reproduce
         self.filTemplate = filTemplate[:]
+
+        # or we could use a list of files to read in together
+        self.listTemplate = []
 
         # optional file containing at least the times of observation
         self.filSamples = filSamples[:]
@@ -238,6 +241,33 @@ class FakeLC(object):
 
         self.tSample = self.genFakeTimes(nData, mjdMin, mjdMax)
 
+    def lcTemplateFromList(self, isMag=True):
+
+        """Load template arrays from a list of files"""
+
+        if len(self.listTemplate) < 1:
+            return
+
+        # we'll accumulate the data here.
+        tAccum = Table()
+        for sFil in self.listTemplate:
+            if not os.access(sFil, os.R_OK):
+                continue
+
+            tThis = Table.read(sFil)
+            tAccum = vstack([tAccum, tThis])
+
+            #print "HERE:", sFil, len(tAccum), tThis.colnames
+
+        # now we build the arrays from the stacked table
+        self.tTemplate = np.asarray(tAccum['tBin'])
+        self.yTemplate = np.asarray(tAccum['fBinSub']) # 2019-07-08
+        self.eTemplate = np.asarray(tAccum['uBin'] / self.errDivisorTemplate)
+
+        self.lcTemplateFromArrays(refFlux=self.refFlux, \
+                                      refMag=self.refMag, \
+                                      isMag=isMag)
+
     def lcTemplateFromFile(self, refMag=-99., refFlux=-99., isMag=True):
 
         """Populates template arrays and lightcurve object from
@@ -267,6 +297,14 @@ class FakeLC(object):
         self.tTemplate = tTempl['tBin']
         self.yTemplate = tTempl['fBinSub'] # 2019-07-08
         self.eTemplate = tTempl['uBin'] / self.errDivisorTemplate
+
+        self.lcTemplateFromArrays(refFlux=refFlux, refMag=refMag, \
+                                      isMag=isMag)
+
+    def lcTemplateFromArrays(self, refMag=-99., refFlux=-99., isMag=True):
+
+        """Translates the template lightcurve arrays into a lightcurve
+        object"""
 
         self.LCtemplate = DELCgen.Lightcurve(\
             self.tTemplate, self.yTemplate, self.sampleTbin, self.eTemplate)    
@@ -394,17 +432,30 @@ class FakeLC(object):
         else:
             LCforUnct = self.LCtemplate
             
-        eMed = np.median(LCforUnct.errors)
-        eStd = np.std(LCforUnct.errors)
+        ## print("DEBUG:", self.LCobs.isFlux, self.LCtemplate.isFlux)
 
-        print("INFO - eMed, eStd, isFlux:", eMed, eStd, \
-                  LCforUnct.isFlux, LCforUnct.refMag)
+        # 2019-07-11 because the observational errors can be extremely
+        # large (e.g. systematics near the end of the night), we clip
+        # the uncertainties before finding the stddev to avoid
+        # generating zero uncertainty in our between-night
+        # points. That breaks the LS.
+        errClip = sigma_clip(LCforUnct.errors, iters=5, sigma=3)
+
+        eMed = np.median(LCforUnct.errors)
+        #eStd = np.std(LCforUnct.errors)
+        eStd = np.std(errClip)
+
 
         if self.useObsFlux:
             LCforFlux = self.LCobs
         else:
             LCforFlux = self.LCtemplate
         yMed = np.median(LCforFlux.flux)
+
+        print("INFO - eMed, eStd, fMed, isFlux:", eMed, eStd, \
+                  yMed, \
+                  LCforUnct.isFlux, LCforUnct.refMag)
+
 
         #eMed = np.median(self.LCtemplate.errors)
         #yMed = np.median(self.LCtemplate.
@@ -417,7 +468,13 @@ class FakeLC(object):
         eLarge = np.repeat(eMed, nLarge)
         eLarge = np.random.normal(size=nLarge)*eStd + eMed
         yLarge = np.random.normal(size=nLarge)*eLarge + yMed
-                           
+                         
+        # 2019-07-11 WIC - enforce positivity on the uncertainties
+        # we're generating for the inter-night padded data. (Should
+        # never be necessary if the uncertainties are
+        # well-characterized.)
+        eLarge = np.abs(eLarge)
+  
         # What we use for the observation intervals depends on whether
         # we are using the observed yvalues and errors. If we are
         # using them, simply copy them in. Otherwise, generate new
@@ -425,12 +482,14 @@ class FakeLC(object):
         # lightcurve
         nObs = np.size(timesObs)
         if self.useObsUncty:
-            obsErr = np.copy(unctyObs)
+            #obsErr = np.copy(unctyObs)
+            obsErr = np.copy(LCforUnct.errors)
         else:
             obsErr = np.random.normal(size=nObs)*eStd + eMed
 
         if self.useObsFlux:
-            obsFlux = np.copy(fluxObs)
+            #obsFlux = np.copy(fluxObs)
+            obsFlux = np.copy(LCforFlux.flux)
         else:
             obsFlux = np.random.normal(size=nObs)*obsErr + yMed
 
@@ -447,7 +506,6 @@ class FakeLC(object):
         yCombo = np.hstack(( yLarge[~bLargeInChunk], obsFlux ))
         eCombo = np.hstack(( eLarge[~bLargeInChunk], obsErr ))
 
-        
         lSor = np.argsort(tCombo)
         
         # pass this up to the blank LC object and set the chunk
@@ -462,6 +520,19 @@ class FakeLC(object):
         self.LCblank.isFlux = True
         self.LCblank.refFlux = self.refFlux # MAY WANT TO CHECK
         self.LCblank.refMag = self.refMag 
+
+        # 2019-07-11 -- debug plot to track down why the LS was
+        # blowing up for the inter-night data we generated.
+        if self.useObsUncty:
+            plt.figure(4)
+            plt.clf()
+            plt.subplot(211)
+            plt.scatter(LCforUnct.time, obsErr, alpha=0.5)
+            plt.subplot(212)
+            plt.scatter(tCombo[lSor], eCombo[lSor], alpha=0.5)
+            plt.xlabel('Time')
+
+        print("INFO:", self.LCblank.isFlux, LCforUnct.isFlux)
 
         # now we have this, set a boolean with the observations in the
         # chunk
@@ -815,18 +886,25 @@ class FakeLC(object):
             
         # compute the lomb-scargle both in and out of observation
         lsFreq = 1.0/self.lsPer
-        lsSho = LombScargle(tSampl[bSho], ySampl[bSho], \
-                                eSampl[bSho]).power(lsFreq)
 
         # do the Lomb-Scargle for all the points
         lsAll = LombScargle(tSampl, ySampl, \
                                 eSampl).power(lsFreq)
+
+
+        lsSho = LombScargle(tSampl[bSho], ySampl[bSho], \
+                                eSampl[bSho]).power(lsFreq)
+
+        ## do the Lomb-Scargle for all the points
+        #lsAll = LombScargle(tSampl, ySampl, \
+        #                        eSampl).power(lsFreq)
 
         # log-bin them
         nBin = 10
         logShoPer, logShoPow, _ = binData(np.log10(self.lsPer), \
                                               np.log10(lsSho), nBin, \
                                               useMedian=True)
+
         logAllPer, logAllPow, _ = binData(np.log10(self.lsPer), \
                                               np.log10(lsAll), nBin, \
                                               useMedian=True)
@@ -927,7 +1005,7 @@ class FakeLC(object):
         # save the figure to disk
         fig1.savefig(figname, rasterized=False)
 
-    def wrapLoadLightcurves(self, Debug=False):
+    def wrapLoadLightcurves(self, Debug=False, useListIfPresent=True):
 
         """Convenience-wrapper to load lightcurves for simulations and
         convert magnitude to flux"""
@@ -936,7 +1014,10 @@ class FakeLC(object):
 
         # template lightcurve (to extract the stddev for the
         # simulation)
-        self.lcTemplateFromFile(refMag=self.refMag, refFlux=self.refFlux)
+        if len(self.listTemplate) > 1 and useListIfPresent:
+            self.lcTemplateFromList()
+        else:
+            self.lcTemplateFromFile(refMag=self.refMag, refFlux=self.refFlux)
 
         if Debug:
             self.getTemplateStats()
@@ -2575,7 +2656,8 @@ def testCompact(nTrials=1, gapMin=0.7, \
                     choiceFom='simpleStd', \
                     testFits = True, \
                     doRednoise = True, \
-                    doPertUncty = True):
+                    doPertUncty = True, \
+                    useTemplateList = False):
 
     """Performs the simulation. Arguments:
 
@@ -2617,6 +2699,9 @@ def testCompact(nTrials=1, gapMin=0.7, \
     doPertUncty -- perturb the simulation by the measurement
     uncertainty after generating the lightcurve? (Default: True)
 
+    useTemplateList -- use a list of template files rather than one
+    single file?
+
     --
     
     Example call to generate 4 trials, with constant-level
@@ -2637,13 +2722,18 @@ def testCompact(nTrials=1, gapMin=0.7, \
         FLC.tSamplesFactor = 1.0
         FLC.keyObsUnct = 'uBin'
         FLC.keyObsFlux = 'fBinSub'
-        FLC.refMag = 0. # 2019-07-08
+        FLC.refMag = 0.0 # 2019-07-08
         
-        FLC.useObsUncty=False
-        FLC.useObsFlux=False
+        FLC.useObsUncty=True
+        FLC.useObsFlux=True  # should probably always match
+                             # useObsUncty
 
     # Apply the uncertainty perturbation choice
     FLC.pertByMeasureUncty = doPertUncty
+
+    if useTemplateList:
+        FLC.listTemplate = ['92Binned.fits', '98Binned.fits', \
+                                '99Binned.fits']
 
     # prepare for simulations
     if doRednoise:
@@ -2679,7 +2769,8 @@ def testFluxConversion(filRef='92Binned.fits'):
 def testDominoes(filHistoric='92Binned.fits', \
                      filSamples='17Binned.fits', \
                      padFac=2, interpKind='nearest', \
-                     doApplyUncty = False):
+                     doApplyUncty = False, \
+                     testList=False):
 
     """Tester for the direct resampling using 'dominoes' and
     interpolation using the 'Counterfeiter'"""
@@ -2695,6 +2786,12 @@ def testDominoes(filHistoric='92Binned.fits', \
                     keyObsFlux='fBinSub', \
                     keyObsUnct='uBin', \
                     tSamplesFactor = 1.0)
+
+    # 2019-07-11 (WIC) - bring in a list of files for the template
+    # rather than just the one
+    if testList:
+        FL.listTemplate = ['92Binned.fits', '98Binned.fits', \
+                               '99Binned.fits']
 
     # 2019-07-05 (WIC) - I think this should be the default. (Update:
     # have made 3 the default in the FakeLC object.)

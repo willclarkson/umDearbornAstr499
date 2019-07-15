@@ -2946,3 +2946,9 @@ def testAssess(pathTrials='tmp_trialStats_chunks.fits'):
 
     print ST.nameFom
     print ST.medianClip, ST.meanClip, ST.stdClip, ST.nGood
+
+    # NOTE TO SELF
+    # 
+    # frequency ranges for LS on poster
+    # 
+    # log10(f) went from -3.9 to -2.8

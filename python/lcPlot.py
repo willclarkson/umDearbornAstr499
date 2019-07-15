@@ -13,7 +13,6 @@ import matplotlib.pylab as plt
 plt.ion()
 
 #plt.style.use('seaborn-white')
-plt.style.use('ggplot')
 
 # a few utilities for doing the lomb-scargle
 from astroML.time_series import lomb_scargle, lomb_scargle_bootstrap
@@ -24,7 +23,13 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
            test=True, nNights=8, logPer=True,
            nNoise=1000, pctile=5., \
            lsOnAll=True, degPoly=2, errScale=1.0, showFit=True, \
-           filName='UnknownYear.txt', write=False, binLS=False, select=True, writeLS=False):
+           filName='UnknownYear.txt', write=False, binLS=False, select=True, writeLS=False, \
+           figPrep=True):
+
+    if figPrep:
+        plt.style.use('./MNRAS_Style.mplstyle')
+    else:
+        plt.style.use('ggplot')
     
     """Plots (time, mag, error) data partitioned by day number. 
 
@@ -186,7 +191,7 @@ def go(times=np.array([]), mags=np.array([]), unctys=np.array([]), \
         # Show the poly-fit in Figure 1
 
         if showFit:
-            fit = ax.plot(hrs, np.polyval(pars, hrs), 'k--', lw=1)
+            fit = ax.plot(hrs, np.polyval(pars, hrs), 'r--', lw=2)
 
         print "Night %i: stddev %.5f" % (iPlot+1, sigz)
 
@@ -520,7 +525,7 @@ def whiteNoiseLS(t=np.array([]), u=np.array([]), \
 def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
                      nTrials=6, pctile=5., stopAfterChunk=False, \
                      degPoly=0, errScale=1.0, filName='UnknownYear.txt', write=False, \
-                     binLS=False, select=True, writeLS=False, forProposal=False):
+                     binLS=False, select=True, writeLS=False, forProposal=False, figPrep=True):
 
     """Loads photometry file and plots in our nice grid"""
 
@@ -530,10 +535,11 @@ def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
         return
 
         # 2019-04-use style sheet depending on what we're doing
-    if not forProposal:
-        plt.style.use('ggplot')
-    else:
-        plt.style.use('classic')
+    if not figPrep:
+        if not forProposal:
+            plt.style.use('ggplot')
+        else:
+            plt.style.use('classic')
         #plt.style.use('seaborn-poster')
         #plt.style.use('seaborn-white')
 
@@ -562,7 +568,7 @@ def showBinnedLC(filTable='v404_binSub.fits', nCols=3, \
     if not stopAfterChunk:
         go(times, mags, unctys, dayno2, test=False, nCols=nCols, \
            nNoise=nTrials, pctile=pctile, errScale=errScale, write=write, filName=filName, \
-           degPoly=degPoly, binLS=binLS, select=select, writeLS=writeLS)
+           degPoly=degPoly, binLS=binLS, select=select, writeLS=writeLS, figPrep=figPrep)
         return
 
     tDiff = times-np.min(times)

@@ -5,15 +5,32 @@ import matplotlib.pylab as plt
 plt.ion()
 plt.style.use('ggplot')
 
-def go(year='2017', nBins=35, cannedRanges=True):
+def go(year='2017', nBins=35, cannedRanges=True, old=False, showTrendline=True):
 
-	if year == '2017':
-		tbl = Table.read('/Users/amblevin/Desktop/17lsAll.txt', format='ascii')
-	elif year == '2018':
-		tbl = Table.read('/Users/amblevin/Desktop/18lsAll.txt', format='ascii')
+	if old:
+		if year == '2017':
+			tbl = Table.read('/Users/amblevin/Desktop/OLD/17lsAll.txt', format='ascii')
+		elif year == '2018A':
+			tbl = Table.read('/Users/amblevin/Desktop/OLD/18lsAll.txt', format='ascii')
+		else:
+			print "'year' must be either 2017 or 2018A if old=True!"
+			return
 	else:
-		print "'year' must be either 2017 or 2018!"
-		return
+		if year == '2017':
+			tbl = Table.read('/Users/amblevin/Desktop/17lsAll.txt', format='ascii')
+		elif year == '2018A':
+			tbl = Table.read('/Users/amblevin/Desktop/18AlsAll.txt', format='ascii')
+		elif year == '2018B':
+			tbl = Table.read('/Users/amblevin/Desktop/18BlsAll.txt', format='ascii')
+		elif year == '1992':
+			tbl = Table.read('/Users/amblevin/Desktop/92lsAll.txt', format='ascii')
+		elif year == '1998':
+			tbl = Table.read('/Users/amblevin/Desktop/98lsAll.txt', format='ascii')
+		elif year == '1999':
+			tbl = Table.read('/Users/amblevin/Desktop/99lsAll.txt', format='ascii')
+		else:
+			print "'year' must be '2017', '2018A', '2018B', '1992', '1998', or '1999'."
+			return
 	
 	fAll = np.asarray(tbl['col0'])
 	lsAll = np.asarray(tbl['col1'])
@@ -34,7 +51,8 @@ def go(year='2017', nBins=35, cannedRanges=True):
 	ax1 = f1.add_subplot(111)
 	#ax1.scatter(logFreq, logPower, color='b')
 	ax1.step(logFreq, logPower, color='k', label=year, lw=2)
-	ax1.plot(logFreq, np.polyval(pwrFit, logFreq), c='r', label=r"$\beta$" +": %5.2f" % pwrFit[0], lw=4, alpha=0.7)
+	if showTrendline:
+		ax1.plot(logFreq, np.polyval(pwrFit, logFreq), c='r', label=r"$\beta$" +": %5.2f" % pwrFit[0], lw=4, alpha=0.7)
 	ax1.legend()
 	ax1.set_xlabel("log(Frequency)")
 	ax1.set_ylabel("log(LS Power)")
@@ -57,7 +75,8 @@ def go(year='2017', nBins=35, cannedRanges=True):
 	f2.clf()
 	ax2 = f2.add_subplot(111)
 	ax2.scatter(logFreqBin, logPwrBin, color='b', label=year)
-	ax2.plot(logFreqBin, np.polyval(pwrFitBin, logFreqBin), c='r', label=r"$\beta$" +": %5.2f" % pwrFitBin[0], lw=2)
+	if showTrendline:
+		ax2.plot(logFreqBin, np.polyval(pwrFitBin, logFreqBin), c='r', label=r"$\beta$" +": %5.2f" % pwrFitBin[0], lw=2)
 
 	# set legend and labels for both plots
 	ax2.set_title('Binned Lomb-Scargle periodogram, %s' % (year))

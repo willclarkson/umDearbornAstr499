@@ -13,11 +13,11 @@ from astropy.table import Table
 import numpy as np
 import matplotlib.pylab as plt
 plt.ion()
-plt.style.use('ggplot')
+#plt.style.use('ggplot')
 
-def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False, \
+def go(binned=True, showOutburst=True, useOld=False, offset=False, figPrep=False, \
        underlayNight=True, useMedian=True, showCannedMean=False, showScaledZ04=False, \
-       annoOutburst=True, forProposal=False):
+       annoOutburst=True, forProposal=False, degPoly=0, PaperPrep=True):
 
 	"""Reads sigma-z data and produces plots similar to Figure 4 of Zurita et al (2004). Some control variables:
 
@@ -30,12 +30,14 @@ def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False, \
         forProposal - use style sheet defaults appropriate for printing on paper"""
 
         # 2019-04-18 WIC - style sheet to use
-        if not forProposal:
-                #plt.style.use('classic')
-                plt.style.use('ggplot')
+        if PaperPrep:
+        	plt.style.use('./MNRAS_Style.mplstyle')
         else:
-                plt.style.use('seaborn-poster')
-                plt.style.use('seaborn-white')
+        	if not forProposal:
+        		plt.style.use('ggplot')
+        	else:
+        		plt.style.use('seaborn-poster')
+        		plt.style.use('seaborn-white')
 
         # 2019-04-18 WIC 
         # set the averaging method
@@ -45,49 +47,49 @@ def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False, \
         
 	# Load the data in format [JD, sigma-z]
 
-	if degPoly == 2:
-		if binned:
-			try:
-				t92 = Table.read('/Users/amblevin/Desktop/sigma92Binned.txt', format='ascii')
-				t98 = Table.read('/Users/amblevin/Desktop/sigma98.txt', format='ascii') # Not binned
-				t99 = Table.read('/Users/amblevin/Desktop/sigma99Binned.txt', format='ascii')
-				t17 = Table.read('/Users/amblevin/Desktop/sigma17Binned.txt', format='ascii')
-				t18A = Table.read('/Users/amblevin/Desktop/sigma18ABinned.txt', format='ascii')
-				t18B = Table.read('/Users/amblevin/Desktop/sigma18BBinned.txt', format='ascii')
-			except UnboundLocalError:
-				print "One or more files not found. Check the directories indicated in the source code."
-		else:
-			try:
-				t92 = Table.read('/Users/amblevin/Desktop/sigma92.txt', format='ascii') # SUSPECT- binTime seems wrong
-				t98 = Table.read('/Users/amblevin/Desktop/sigma98.txt', format='ascii')
-				t99 = Table.read('/Users/amblevin/Desktop/sigma99.txt', format='ascii')
-				t17 = Table.read('/Users/amblevin/Desktop/sigma17.txt', format='ascii')
-				t18A = Table.read('/Users/amblevin/Desktop/sigma18A.txt', format='ascii')
-				t18B = Table.read('/Users/amblevin/Desktop/sigma18B.txt', format='ascii')
-			except UnboundLocalError:
-				print "One or more files not found. Check the directories indicated in the source code."
-	elif degPoly == 1:
-		if binned:
-			try:
-				t92 = Table.read('/Users/amblevin/Desktop/sigma92Binnedd1.txt', format='ascii')
-				t98 = Table.read('/Users/amblevin/Desktop/sigma98d1.txt', format='ascii') # Not binned
-				t99 = Table.read('/Users/amblevin/Desktop/sigma99Binnedd1.txt', format='ascii')
-				t17 = Table.read('/Users/amblevin/Desktop/sigma17Binnedd1.txt', format='ascii')
-				t18A = Table.read('/Users/amblevin/Desktop/sigma18ABinnedd1.txt', format='ascii')
-				t18B = Table.read('/Users/amblevin/Desktop/sigma18BBinnedd1.txt', format='ascii')
-			except UnboundLocalError:
-				print "One or more files not found. Check the directories indicated in the source code."
-		else:
-			try:
-				t92 = Table.read('/Users/amblevin/Desktop/sigma92d1.txt', format='ascii') # SUSPECT- binTime seems wrong
-				t98 = Table.read('/Users/amblevin/Desktop/sigma98d1.txt', format='ascii')
-				t99 = Table.read('/Users/amblevin/Desktop/sigma99d1.txt', format='ascii')
-				t17 = Table.read('/Users/amblevin/Desktop/sigma17d1.txt', format='ascii')
-				t18A = Table.read('/Users/amblevin/Desktop/sigma18Ad1.txt', format='ascii')
-				t18B = Table.read('/Users/amblevin/Desktop/sigma18Bd1.txt', format='ascii')
-			except UnboundLocalError:
-				print "One or more files not found. Check the directories indicated in the source code."
-	elif degPoly == 0:
+	# if degPoly == 2:
+	# 	if binned:
+	# 		try:
+	# 			t92 = Table.read('/Users/amblevin/Desktop/sigma92Binned.txt', format='ascii')
+	# 			t98 = Table.read('/Users/amblevin/Desktop/sigma98.txt', format='ascii') # Not binned
+	# 			t99 = Table.read('/Users/amblevin/Desktop/sigma99Binned.txt', format='ascii')
+	# 			t17 = Table.read('/Users/amblevin/Desktop/sigma17Binned.txt', format='ascii')
+	# 			t18A = Table.read('/Users/amblevin/Desktop/sigma18ABinned.txt', format='ascii')
+	# 			t18B = Table.read('/Users/amblevin/Desktop/sigma18BBinned.txt', format='ascii')
+	# 		except UnboundLocalError:
+	# 			print "One or more files not found. Check the directories indicated in the source code."
+	# 	else:
+	# 		try:
+	# 			t92 = Table.read('/Users/amblevin/Desktop/sigma92.txt', format='ascii') # SUSPECT- binTime seems wrong
+	# 			t98 = Table.read('/Users/amblevin/Desktop/sigma98.txt', format='ascii')
+	# 			t99 = Table.read('/Users/amblevin/Desktop/sigma99.txt', format='ascii')
+	# 			t17 = Table.read('/Users/amblevin/Desktop/sigma17.txt', format='ascii')
+	# 			t18A = Table.read('/Users/amblevin/Desktop/sigma18A.txt', format='ascii')
+	# 			t18B = Table.read('/Users/amblevin/Desktop/sigma18B.txt', format='ascii')
+	# 		except UnboundLocalError:
+	# 			print "One or more files not found. Check the directories indicated in the source code."
+	# elif degPoly == 1:
+	# 	if binned:
+	# 		try:
+	# 			t92 = Table.read('/Users/amblevin/Desktop/sigma92Binnedd1.txt', format='ascii')
+	# 			t98 = Table.read('/Users/amblevin/Desktop/sigma98d1.txt', format='ascii') # Not binned
+	# 			t99 = Table.read('/Users/amblevin/Desktop/sigma99Binnedd1.txt', format='ascii')
+	# 			t17 = Table.read('/Users/amblevin/Desktop/sigma17Binnedd1.txt', format='ascii')
+	# 			t18A = Table.read('/Users/amblevin/Desktop/sigma18ABinnedd1.txt', format='ascii')
+	# 			t18B = Table.read('/Users/amblevin/Desktop/sigma18BBinnedd1.txt', format='ascii')
+	# 		except UnboundLocalError:
+	# 			print "One or more files not found. Check the directories indicated in the source code."
+	# 	else:
+	# 		try:
+	# 			t92 = Table.read('/Users/amblevin/Desktop/sigma92d1.txt', format='ascii') # SUSPECT- binTime seems wrong
+	# 			t98 = Table.read('/Users/amblevin/Desktop/sigma98d1.txt', format='ascii')
+	# 			t99 = Table.read('/Users/amblevin/Desktop/sigma99d1.txt', format='ascii')
+	# 			t17 = Table.read('/Users/amblevin/Desktop/sigma17d1.txt', format='ascii')
+	# 			t18A = Table.read('/Users/amblevin/Desktop/sigma18Ad1.txt', format='ascii')
+	# 			t18B = Table.read('/Users/amblevin/Desktop/sigma18Bd1.txt', format='ascii')
+	# 		except UnboundLocalError:
+	# 			print "One or more files not found. Check the directories indicated in the source code."
+	if useOld:
 		if binned:
 			try:
 				t92 = Table.read('/Users/amblevin/Desktop/sigma92Binnedd0.txt', format='ascii')
@@ -108,6 +110,28 @@ def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False, \
 				t18B = Table.read('/Users/amblevin/Desktop/sigma18Bd0.txt', format='ascii')
 			except UnboundLocalError:
 				print "One or more files not found. Check the directories indicated in the source code."
+	else:
+		if binned:
+			try:
+				t92 = Table.read('/Users/amblevin/Desktop/s92B.txt', format='ascii')
+				t98 = Table.read('/Users/amblevin/Desktop/s98B.txt', format='ascii')
+				t99 = Table.read('/Users/amblevin/Desktop/s99B.txt', format='ascii')
+				t17 = Table.read('/Users/amblevin/Desktop/s17B.txt', format='ascii')
+				t18A = Table.read('/Users/amblevin/Desktop/s18AB.txt', format='ascii')
+				t18B = Table.read('/Users/amblevin/Desktop/s18BB.txt', format='ascii')
+			except UnboundLocalError:
+				print "One or more files not found. Check the directories indicated in the source code."
+		else:
+			try:
+				t92 = Table.read('/Users/amblevin/Desktop/s92.txt', format='ascii') # SUSPECT- binTime seems wrong
+				t98 = Table.read('/Users/amblevin/Desktop/s98.txt', format='ascii')
+				t99 = Table.read('/Users/amblevin/Desktop/s99.txt', format='ascii')
+				t17 = Table.read('/Users/amblevin/Desktop/s17.txt', format='ascii')
+				t18A = Table.read('/Users/amblevin/Desktop/s18A.txt', format='ascii')
+				t18B = Table.read('/Users/amblevin/Desktop/s18B.txt', format='ascii')
+			except UnboundLocalError:
+				print "One or more files not found. Check the directories indicated in the source code."
+
 
 	# Extract all columns into arrays
 
@@ -174,8 +198,7 @@ def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False, \
         # show the Z04 value?
         if showCannedMean:
                 ax1.hlines(0.037, 47000, 60000, color='0.2', lineStyles='dashed', label='Mean (literature, Z04)', lw=1, zorder=1)
-
-        if not figPrep:
+	if not figPrep:
 		ax1.plot(jdAll, meanZ04, 'g--', label="Mean (Zurita data)")
 		#ax1.plot(jdAll, meanMDM, 'b--', label="Mean (MDM data)")
 		ax1.hlines(meanMDM, 47000, 60000, color='blue', lineStyles='--', label="Mean(MDM Data)")
@@ -283,7 +306,7 @@ def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False, \
                 
         ax2.scatter(mjdAllBut18B[~bZ04mean], msAllBut18B[~bZ04mean], color='b', alpha=1.0, marker='o', label='MDM', s=49, zorder=4)
 	ax2.scatter(mjd18B, msz18B, color='r', label='MDM (sparse)', s=36, zorder=4)
-	#ax2.hlines(dlAll, 47000, 60000, color='0.2', lineStyles='--', label="Mean (All data)", lw=1)
+	ax2.hlines(dlAll, 47000, 60000, color='0.2', lineStyles='--', label="Mean (All data)", lw=1)
 
         # 2019-04-18 WIC - made this optional (since if we have the rescaled 200? as well, it's no longer all the data
         if not showScaledZ04:
@@ -298,7 +321,7 @@ def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False, \
                         labelCanned = '%s * %.2f' % (labelCanned, sf_z04_to_own)
                 ax2.hlines(meanCanned, 47000, 60000, color='0.2', lineStyles='dashed', label=labelCanned, lw=1, zorder=1)
         
-	if not figPrep:
+	if not PaperPrep:
 		ax2.plot(mjdAll, dlZ04, 'k--', label="Mean (Z04 Figure 4)")
 		ax2.plot(mjdAll, dl92and98, 'g--', label="Mean (Zurita data)")
 		ax2.plot(mjdAll, dlMDM, 'b--', label="Mean (MDM Data)")
@@ -337,10 +360,11 @@ def go(binned=True, showOutburst=True, degPoly=0, offset=False, figPrep=False, \
                 
 		plt.title("%s flaring within each observing run" % (sMean))
 	else:
-		if binned:
-			plt.title ("Yearly Flare Activity (Binned); Degree %i" % degPoly)
-		else:
-			plt.title("Yearly Flare Activity; Degree %i" % degPoly)
+		if not PaperPrep:
+			if binned:
+				plt.title ("Yearly Flare Activity (Binned); Degree %i" % degPoly)
+			else:
+				plt.title("Yearly Flare Activity; Degree %i" % degPoly)
 	plt.show()
 
         # save the figures

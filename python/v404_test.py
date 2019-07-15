@@ -2,7 +2,6 @@
 
 import matplotlib.pylab as plt
 plt.ion()
-plt.style.use('ggplot')
 from astropy.table import Table
 import numpy as np
 from scipy import optimize
@@ -96,9 +95,15 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	       genOS=False, moreTimes=False, genTS=False, amp1=-0.04, amp2=0.108, \
 	       plot2Phases=False, \
 	       filBinned='v404_binSub.fits', \
-	       filExp='v404_unbinned_sub.fits'):
+	       filExp='v404_unbinned_sub.fits', \
+	       z04Ellip=True, labels=False, overlay18=False, figPrep=True):
 	# WIC - put the table reading back into go, to avoid scope
 	# confusion
+
+	if figPrep:
+		plt.style.use('./MNRAS_Style.mplstyle')
+	else:
+		plt.style.use('ggplot')
 
 	warn = "WARNING: Ellipsoidal modulation will not work for 2003!"
 	warn2 = "WARNING: Binned and subtracted data only plots if plotEllipsoidal is set to True."
@@ -338,10 +343,11 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		if not useMags:
 			print "WARNING: Lower-envelope ellipsoidals will not plot while useMags=False."
 		a1 = 0.1# 0.02 # First Amplitude -- 'DEFAULT' VALUE IS 0.1
-		phi = -4.0 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift-- Default is -4.0
+		phi = -2.5 # sin(2*pi*t/P) + phi <-This is phi. Offset; horizontal shift-- Default is -4.0
 		orbital_period = 6.4714 # According to Pavlenko et al (1996)
 		diff = 16.6 # Shift due to average magnitude- Default is 16.6
 		a2 = 0.2 # Second Amplitude -- 'DEFAULT' VALUE IS 0.2 
+		phi2 = -2.0 # second phi for Zurita-like fitting
 		
 
 		p = [a1, phi, orbital_period, diff, a2] #This is for my attempt
@@ -368,25 +374,39 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 
 	 	p0 = np.array([a1, phi, orbital_period, diff, a2])
+	 	p0z = np.array([a1, phi, diff, phi2])
 	 	guess = np.array([a1, phi, diff, a2])
+	 	guessz = np.array([a1, phi, diff, phi2, a2])
 	 	bounds = ([-np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf])
+	 	boundsz = ([-np.inf, -np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf, np.inf])
 	 	#print "Guess[a1, phi, o_p, diff, a2]: ", p0
 	 	if overlayEllipsoidal:
 	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p11998.txt", unpack=True)
 	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow1998.txt", unpack=True)
+	 	elif overlay18:
+	 		p1 = np.loadtxt("/Users/amblevin/Desktop/p12018A.txt", unpack=True)
+	 		pLow = np.loadtxt("/Users/amblevin/Desktop/pLow2018A.txt", unpack=True)
 	 	else:
 	 		ph, _ = phaseFromJD(jd, tZer=t0)
 	 		phLow, _ = phaseFromJD(tLow, tZer=t0)
 	 		print "phLow: ", phLow
 	 		print "tLow: ", tLow
 	 		print "yLow: ", yLow
-			p1, pcov_1 = optimize.curve_fit(twoSinePhase, ph, mag, p0=guess, method='trf', \
-		    	bounds=bounds, sigma=dy, absolute_sigma=True) 
+	 		if not z04Ellip:
+				p1, pcov_1 = optimize.curve_fit(twoSinePhase, ph, mag, p0=guess, method='trf', \
+		    		bounds=bounds, sigma=dy, absolute_sigma=True) 
+			else:
+				p1, pcov_1 = optimize.curve_fit(twoSineZPhase, ph, mag, p0=guessz, method='trf', \
+					bounds=boundsz, sigma=dy, absolute_sigma=True)
 			
 			#pLow, successLow = optimize.leastsq(errFunc, pGuess[:], args=(tLow, yLow), maxfev=int(1e6), ftol=1e-10)
 
-			pLow, pcov_low = optimize.curve_fit(twoSinePhase, phLow, yLow, p0=guess, method='trf', \
-		    	bounds=bounds) # Sigma CANNOT be used for the lower envelope!
+			if not z04Ellip:
+				pLow, pcov_low = optimize.curve_fit(twoSinePhase, phLow, yLow, p0=guess, method='trf', \
+		    		bounds=bounds) # Sigma CANNOT be used for the lower envelope!
+			else:
+				pLow, pcov_low = optimize.curve_fit(twoSineZPhase, phLow, yLow, p0=guessz, method='trf', \
+					bounds=boundsz)
 
 		    
 		if writeEllipsoidal:
@@ -401,14 +421,20 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 	 	# by this point we have the ellipsoidal modulation fit to the dataset
 	 	# 2019-03-19 altered twoSineTime --> twoSine2019
-	 	ySub = mag - twoSine2019(jd, *pLow)
+	 	if not z04Ellip:
+	 		ySub = mag - twoSine2019(jd, *pLow)
+	 	else:
+	 		ySub = mag - twoSineZurita(jd, *pLow)
 
 		# write out the ellipsoidal modulation model to disk for
 		# uniform characterization by v404ellipsoidal.py
 		tModel = Table()
 		tFine = np.linspace(np.min(jd), np.max(jd)+8., 400)
 		pFine, _ = phaseFromJD(tFine, tZer=t0)
-		yFine = twoSine2019(tFine, *pLow, t0=t0)
+		if not z04Ellip:
+			yFine = twoSine2019(tFine, *pLow, t0=t0)
+		else:
+			yFine = twoSineZurita(tFine, *pLow, t0=t0)
 		ll = np.argsort(pFine)
 
 		tModel['x'] = pFine[ll]
@@ -431,9 +457,15 @@ def go(pctile=10., iCheck=1, useMags=True, \
  	# if you want to subtract the ellipsoidal modulation from the data, you might do:
  	if plotSubtractedData:
 	 	if showBinned:
-	 		fBinSub = fBin - twoSine2019(tBin, *pLow)
+	 		if not z04Ellip:
+	 			fBinSub = fBin - twoSine2019(tBin, *pLow)
+	 		else:
+	 			fBinSub = fBin - twoSineZurita(tBin, *pLow)
 	 	else:
-	 		fSub = mag - twoSine2019(jd, *pLow)
+	 		if not z04Ellip:
+	 			fSub = mag - twoSine2019(jd, *pLow)
+	 		else:
+	 			fSub = mag - twoSineZurita(jd, *pLow)
 
 	 	# let's plot this...
 
@@ -453,7 +485,7 @@ def go(pctile=10., iCheck=1, useMags=True, \
  			ax11.errorbar(tBin, fBinSub, yerr=uBin, fmt='o', ms=4, ecolor='0.5', alpha=0.5)
 
  		yLims = np.copy(plt.gca().get_ylim())
- 		plt.ylim([yLims[1], yLims[0]])
+ 		#plt.ylim([yLims[1], yLims[0]])
 
 
 
@@ -622,8 +654,12 @@ def go(pctile=10., iCheck=1, useMags=True, \
 
 
 	if plotEllipsoidal:
-		yPred = twoSine2019(jd, *p1, t0=t0)
-		yPredLow = twoSine2019(jd, *pLow, t0=t0)
+		if not z04Ellip:
+			yPred = twoSine2019(jd, *p1, t0=t0)
+			yPredLow = twoSine2019(jd, *pLow, t0=t0)
+		else:
+			yPred = twoSineZurita(jd, *p1, t0=t0)
+			yPredLow = twoSineZurita(jd, *pLow, t0=t0)
 
 		#Generating random points throughout the best fit line
 		#num_points = 1401
@@ -688,16 +724,29 @@ def go(pctile=10., iCheck=1, useMags=True, \
 	 		p1_98 = np.loadtxt("/Users/amblevin/Desktop/p11998.txt")
 	 		pLow_98 = np.loadtxt("/Users/amblevin/Desktop/pLow1998.txt") # Currently incorrect ellipsoidal
 
-	 		Y17e = twoSine2019(xGrid[lG], *p1_17, t0=57983.8468)
-	 		Y17Le = twoSine2019(xGrid[lG], *pLow_17, t0=57983.8468)
-	 		Y18Ae = twoSine2019(xGrid[lG], *p1_18A, t0=58268.5884)
-	 		Y18ALe = twoSine2019(xGrid[lG], *pLow_18A, t0=58268.5884)
-	 		Y18Be = twoSine2019(xGrid[lG], *p1_18B, t0=58333.3024)
-	 		Y18BLe = twoSine2019(xGrid[lG], *pLow_18B, t0=58333.3024)
-	 		Y92e = twoSine2019(xGrid[lG], *p1_92, t0=48813.873)
-	 		Y92Le = twoSine2019(xGrid[lG], *pLow_92, t0=48813.873)
-	 		Y98e = twoSine2019(xGrid[lG], *p1_98, t0=48813.873)
-	 		Y98Le = twoSine2019(xGrid[lG], *pLow_98, t0=48813.873)
+	 		
+	 		if not z04Ellip:
+		 		Y17e = twoSine2019(xGrid[lG], *p1_17, t0=57983.8468)
+		 		Y17Le = twoSine2019(xGrid[lG], *pLow_17, t0=57983.8468)
+		 		Y18Ae = twoSine2019(xGrid[lG], *p1_18A, t0=58268.5884)
+		 		Y18ALe = twoSine2019(xGrid[lG], *pLow_18A, t0=58268.5884)
+		 		Y18Be = twoSine2019(xGrid[lG], *p1_18B, t0=58333.3024)
+		 		Y18BLe = twoSine2019(xGrid[lG], *pLow_18B, t0=58333.3024)
+		 		Y92e = twoSine2019(xGrid[lG], *p1_92, t0=48813.873)
+		 		Y92Le = twoSine2019(xGrid[lG], *pLow_92, t0=48813.873)
+		 		Y98e = twoSine2019(xGrid[lG], *p1_98, t0=48813.873)
+		 		Y98Le = twoSine2019(xGrid[lG], *pLow_98, t0=48813.873)
+		 	else:
+		 		Y17e = twoSineZurita(xGrid[lG], *p1_17, t0=57983.8468)
+		 		Y17Le = twoSineZurita(xGrid[lG], *pLow_17, t0=57983.8468)
+		 		Y18Ae = twoSineZurita(xGrid[lG], *p1_18A, t0=58268.5884)
+		 		Y18ALe = twoSineZurita(xGrid[lG], *pLow_18A, t0=58268.5884)
+		 		Y18Be = twoSineZurita(xGrid[lG], *p1_18B, t0=58333.3024)
+		 		Y18BLe = twoSineZurita(xGrid[lG], *pLow_18B, t0=58333.3024)
+		 		Y92e = twoSineZurita(xGrid[lG], *p1_92, t0=48813.873)
+		 		Y92Le = twoSineZurita(xGrid[lG], *pLow_92, t0=48813.873)
+		 		Y98e = twoSineZurita(xGrid[lG], *p1_98, t0=48813.873)
+		 		Y98Le = twoSineZurita(xGrid[lG], *pLow_98, t0=48813.873)
 
 	 		Y17 = Y17e
 	 		Y17L = Y17Le
@@ -770,13 +819,21 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		plt.figure(1)
 		plt.clf()
 		#plt.scatter(jd, mag, alpha=0.5, color='darkmagenta')
-		dum = plt.scatter(tSho, mag, \
+		if not figPrep:
+			dum = plt.scatter(tSho, mag, \
 					  alpha=1., c=cScatt, s=16, \
 					  cmap='inferno', zorder=25, \
 					  edgecolor='0.4')
+		else:
+			dum = plt.scatter(tSho, mag, \
+				alpha=1., s=16., c='k', \
+				zorder=25, edgecolor='0.4')
 		plt.plot(tLo, yLow, 'ko', ms=7, zorder=25)
 		elLowX = tGrid[lG]
-		lowEllip = twoSine2019(xGrid[lG], *pLow, t0=t0)
+		if not z04Ellip:
+			lowEllip = twoSine2019(xGrid[lG], *pLow, t0=t0)
+		else:
+			lowEllip = twoSineZurita(xGrid[lG], *pLow, t0=t0)
 		elLowY = lowEllip
 		if plot2Phases:
 			if not showPhase:
@@ -784,14 +841,28 @@ def go(pctile=10., iCheck=1, useMags=True, \
 				return
 			else:
 				elLowX, elLowY = plotAnotherPhase(phase=tGrid[lG], y=lowEllip)
-
-		plt.plot(elLowX, elLowY, c='k')
-		medEllip = twoSine2019(xGrid[lG], *p1, t0=t0)
+		if not labels:
+			plt.plot(elLowX, elLowY, c='k')
+		else:
+			if z04Ellip:
+				plt.plot(elLowX, elLowY, c='k', label='fit: a=%5.3f, phi=%5.3f, offset=%5.3f, phi2=%5.3f, a2=%5.3f' % tuple(pLow))
+			else:
+				plt.plot(elLowX, elLowY, c='k', label='fit: a=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(pLow))
+		if not z04Ellip:
+			medEllip = twoSine2019(xGrid[lG], *p1, t0=t0)
+		else:
+			medEllip = twoSineZurita(xGrid[lG], *p1, t0=t0)
 		elMidX = tGrid[lG]
 		elMidY = medEllip
 		if plot2Phases:
 			elMidX, elMidY = plotAnotherPhase(phase=tGrid[lG], y=medEllip)
-		plt.plot(elMidX, elMidY, c='g', ls='--')
+		if not labels:
+			plt.plot(elMidX, elMidY, c='g', ls='--')
+		else:
+			if z04Ellip:
+					plt.plot(elMidX, elMidY, c='g', ls='--', label='Median fit: a=%5.3f, phi=%5.3f, offset=%5.3f, phi2=%5.3f, a2=%5.3f' % tuple(p1))
+			else:
+				plt.plot(elMidX, elMidY, c='g', ls='--', label='Median fit: a=%5.3f, phi=%5.3f, offset=%5.3f, a2=%5.3f' % tuple(p1))
 		# plt.scatter(jd, ySub, c='violet', s=16)
 		if errorbars:
 			plt.errorbar(tSho, mag, yerr=dy, fmt='o', \
@@ -800,8 +871,9 @@ def go(pctile=10., iCheck=1, useMags=True, \
 		
 		#plt.plot(phase, yPred, 'gx', lw=2, alpha=0.5, ls='-')
 		#plt.plot(phase, yPredLow, 'k+', lw=2, alpha=0.5, ls='--')
-		if useFlag > 4 or usePhase:
-			plt.colorbar(dum)
+		if not figPrep:
+			if useFlag > 4 or usePhase:
+				plt.colorbar(dum)
 
 		##plt.plot(jd, 0.0393104 * np.sin(2.0*np.pi*jd/6.47155519  + -1.68599974)+16.5961013 + 0.15487321 * np.sin(4.0*np.pi*jd/6.47155519 + -1.68599974), '-b') #attempt to plot the function itself
 
@@ -840,6 +912,8 @@ def go(pctile=10., iCheck=1, useMags=True, \
 				plt.xlim(0., 2.)
 			else:
 				plt.xlim(0., 1.)
+
+		#plt.legend()
 		
 		# 2018-04-07 - save the plot as png, naming convention after
 		# the figure numbers in the routine.
@@ -1385,6 +1459,29 @@ def twoSineTime(time, a1, phi, offset, a2):
 	sineTwo = a2 * np.sin(4.0*np.pi*time + phi)
 
 	return sineOne + sineTwo
+
+def twoSineZurita(x, a, phi1, offset, phi2, a2, t0=48813.873):
+	"""Ellipsoidal fit in the style of Zurita et al (2004)"""
+
+	phase, _ = np.array(phaseFromJD(x, tZer=t0))
+
+	result = twoSineZPhase(phase, a, phi1, offset, phi2, a2)
+
+	return result
+
+def twoSineZPhase(phase, a, phi1, offset, phi2, a2):
+
+	sineOne = a * np.sin(2.0*np.pi*phase + phi1) + offset
+	sineTwo = a2 * np.sin(4.0*np.pi*phase + phi2)
+
+	return sineOne + sineTwo
+
+def twoSineZTime(time, a, phi1, offset, phi2, a2):
+
+	sineOne = a * np.sin(2.0*np.pi*time + phi1) + offset
+	sineTwo = a * np.sin(4.0*np.pi*time + phi2)
+
+	return sineOne + sineTwo 
 
 def twiceSine(p,x, debug=False):
 

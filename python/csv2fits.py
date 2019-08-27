@@ -23,6 +23,9 @@ def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource*csv*', \
 
     showProgess -- prints progress to a single line in the terminal."""
 
+    # Designed to run from the following location on Rigel:
+    # /raid1/data/gaiadr2/cdn.gea.esac.esa.int/Gaia/gdr2/gaia_source
+
     # Much of the code here is actually boilerplate bells and
     # whistles, since this is going to be run on half a terabyte of
     # .csv.gz files and I want to have some sort of record for
@@ -99,9 +102,19 @@ def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource*csv*', \
 
                 wObj.write('%s ok\n' % (thisFil))
 
-            except:
-                
+            # break out of the loop if a keyboard interrupt is
+            # detected. (Here, the counter will assume the current
+            # file failed.)
+            except KeyboardInterrupt:
+                print("csv2fits.go INFO - keyboard interrupt detected.")
+                wObj.write('# Elapsed time before keyboard interrupt: %i files in %.2e seconds\n' \
+                               % (iFil, (Time.now()-tStarted).sec))
+                return
+
+
+            except:                
                 wObj.write('%s PROBLEM\n' % (thisFil))
+
 
         # let's record the elapsed time in our logfile
         wObj.write('# Elapsed time: %i files in %.2e seconds\n' \

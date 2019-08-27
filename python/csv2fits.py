@@ -14,6 +14,11 @@ def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource', \
 
     """Convert csv to fits via astropy"""
 
+    # Much of the code here is actually boilerplate bells and
+    # whistles, since this is going to be run on half a terabyte of
+    # .csv.gz files and I want to have some sort of record for
+    # progress.
+
     # return rather than try to guess user intention
     if not os.access(dirCSV, os.R_OK):
         print("csv2fits.go WARN - cannot read input directory %s" \
@@ -34,10 +39,6 @@ def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource', \
     # guard against some stupid logfile name like './'
     if len(filLog) < 3:
         filLog = 'csv2fits.log'
-
-    # open the logfile for writing
-    #if os.access(filLog, os.R_OK):
-    #    os.remove(filLog)
 
     with open(filLog, 'w') as wObj:
 

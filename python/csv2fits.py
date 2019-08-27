@@ -106,6 +106,7 @@ def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource*csv*', \
             # detected. (Here, the counter will assume the current
             # file failed.)
             except KeyboardInterrupt:
+                print("\n") # add the carriage return for clarity on terminal
                 print("csv2fits.go INFO - keyboard interrupt detected.")
                 wObj.write('# Elapsed time before keyboard interrupt: %i files in %.2e seconds\n' \
                                % (iFil, (Time.now()-tStarted).sec))

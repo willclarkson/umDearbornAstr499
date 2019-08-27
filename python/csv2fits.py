@@ -10,7 +10,7 @@ from astropy.table import Table
 from astropy.time import Time
 
 def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource*csv*', \
-           filLog='csv2fits.log', gzOutput=True, showProgress=True):
+           filLog='csv2fits.log', gzOutput=False, showProgress=True):
 
     """Convert csv to fits via astropy. Assumes the .csv[.gz] files
     are in subdirectory [dirCSV] and the output fits files will go
@@ -19,7 +19,8 @@ def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource*csv*', \
     srchStr -- search string to use by glob when finding files in a
     given directory.
 
-    gzOutput -- write output as .fits.gz instead of .fits
+    gzOutput -- compress the fits output files (saves about a factor 2
+    in disk space, but requires about 5.5x the time to process)
 
     showProgess -- prints progress to a single line in the terminal."""
 

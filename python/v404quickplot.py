@@ -5,7 +5,8 @@ plt.ion()
 from astropy.table import Table
 from astropy.io import fits
 
-def go(sSrch='FluxData_2*.txt', Debug=False, showMag=True, binMinutes=5.3):
+def go(sSrch='FluxData_2*.txt', Debug=False, showMag=True, binMinutes=5.3, \
+           showSubset=True, showLegend=True):
 
     # let's look for our photom files
     lPhot = glob.glob(sSrch)
@@ -70,25 +71,68 @@ def go(sSrch='FluxData_2*.txt', Debug=False, showMag=True, binMinutes=5.3):
 
         sYaxis = r'$\Delta mag$ relative to reference star'
 
+    # label for plots
+    sLabelFine = '15s exposures'
+    sLabelSho = '%.2f-min bins (%i exposures/bin)' \
+        % (binMinutes, binMinutes / 0.25)
+
     # syntax to plot would come here...
     fig = plt.figure(1)
     fig.clf()
-    plt.scatter(tAll, rSho, color='b', zorder=10)
-    plt.errorbar(tAll, rSho, yerr=eSho, color='b', alpha=0.5, ls='none', zorder=10)
+    plt.scatter(tAll, rSho, color='b', zorder=10, s=4, alpha=0.5, \
+                    edgecolor='0.1')
+    #dum = plt.scatter(tAll, rSho, c=eSho, zorder=15, s=9, cmap='Blues_r', \
+    #                      vmin=0.0, vmax=0.01)
+    plt.errorbar(tAll, rSho, yerr=eSho, color='b', alpha=0.5, ls='none', zorder=10, label=sLabelSho, marker='o', ms=2)
     plt.gca().set_ylabel(sYaxis)
     plt.gca().set_xlabel('MJD')
+
+    plt.ylim(0.6,0.0)
+
+    #cbar = plt.colorbar(dum)
 
     # we get the axis limits here so that we can apply them below
     yAx = plt.gca().get_ylim()
 
     # let's underplot the raw data
-    faintColor = '0.9'
-    plt.scatter(tFine, rShoFine, color=faintColor, zorder=5, s=4)
-    plt.errorbar(tFine, rShoFine, yerr=eShoFine, color=faintColor, zorder=5, ls='none', ms=2)
+    faintColor = '0.7'
+    plt.scatter(tFine, rShoFine, color=faintColor, zorder=5, s=3, alpha=0.5)
+    plt.errorbar(tFine, rShoFine, yerr=eShoFine, color=faintColor, zorder=5, ls='none', ms=2, alpha=0.5, label=sLabelFine, marker='o')
     plt.gca().set_ylim(yAx)
 
-    plt.show()
+    # plt.show()
     
+    leg=plt.legend()
+
+    if showSubset:
+        xLo = 58693.7
+        xHi = 58694.0
+        yLo = 0.30
+        yHi = 0.00
+
+        xPol = np.array([xLo, xHi, xHi, xLo, xLo])
+        yPol = np.array([yLo, yLo, yHi, yHi, yLo])
+
+        plt.plot(xPol,yPol, color='0.2', ls='--', zorder=15)
+
+    # save the figure
+    plt.savefig('v404Cyg_2019Jul_nights1-5.png')
+
+    # ok now for the subset
+    if showSubset:
+        plt.xlim(xLo, xHi)
+        plt.ylim(yLo, yHi)
+
+        # show the lines as well
+        xBrack = np.copy(plt.gca().get_xlim())
+        bRange = (tAll > xBrack[0]) & (tAll <= xBrack[1])
+        lSor = np.argsort(tAll[bRange])
+        dum2 = plt.plot(tAll[bRange][lSor], rSho[bRange][lSor], \
+                            zorder=9, color='b', lw=1, \
+                            alpha=0.4)
+
+        plt.savefig('v404Cyg_2019Jul_nights1-5_zoomNight5.png')
+
 
 def readAndBin(lcFile='blah.txt', Verbose=False):
 

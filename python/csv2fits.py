@@ -87,8 +87,8 @@ def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource*csv*', \
                 sys.stdout.flush()
 
             # we wrap the reading and writing into a try/except clause
-            # so that we can handle bad cases (we have hundreds of
-            # input files)
+            # so that we can handle bad cases (we have tens of
+            # thousands of input files)
             try:
 
                 # now we read the input frame

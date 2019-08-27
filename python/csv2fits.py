@@ -9,10 +9,19 @@ import glob, os, sys
 from astropy.table import Table
 from astropy.time import Time
 
-def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource', \
+def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource*csv*', \
            filLog='csv2fits.log', gzOutput=True, showProgress=True):
 
-    """Convert csv to fits via astropy"""
+    """Convert csv to fits via astropy. Assumes the .csv[.gz] files
+    are in subdirectory [dirCSV] and the output fits files will go
+    into a different subdirectory [dirFITS].
+
+    srchStr -- search string to use by glob when finding files in a
+    given directory.
+
+    gzOutput -- write output as .fits.gz instead of .fits
+
+    showProgess -- prints progress to a single line in the terminal."""
 
     # Much of the code here is actually boilerplate bells and
     # whistles, since this is going to be run on half a terabyte of
@@ -25,8 +34,9 @@ def go(dirCSV='./csv', dirFITS='./fits', srchStr='GaiaSource', \
                   % (dirCSV))
         return
 
-    # look for source files
-    searchString = '%s/%s*csv*' % (dirCSV, srchStr)
+    # look for source files. Trust the user to invent a sensible
+    # search string.
+    searchString = '%s/%s' % (dirCSV, srchStr)
     lFiles = glob.glob(searchString)
 
     if len(lFiles) < 1:

@@ -1,4 +1,4 @@
-from astropy.table import Table
+from astropy.table import Table, Column
 import matplotlib.pylab as plt
 from astropy.io import ascii
 from astropy.io import fits
@@ -11,9 +11,13 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from matplotlib.pylab import quiver
 
+# For world coordinate system
+from astropy.wcs import WCS
+
 plt.ion()
 
-def go(fCat='GaiaCatalog0.ASC', fHeader='V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit', \
+def go(fCat='GaiaCatalog0.ASC', \
+       fHeader='V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit', \
        colBlobLength='A_IMAGE', blobLenDefault=5.):
     
     """Try quiver plot"""
@@ -74,6 +78,45 @@ def go(fCat='GaiaCatalog0.ASC', fHeader='V404_Cyg_adOFF-012_R_120sTest_MAPPED.fi
     myHeader = fits.getheader(fHeader)
     time=myHeader['DATE-OBS']
     print(time)
+
+    # Let's promote the world coordinate system parsing out to here,
+    # since we're going to need it whatever we do
+    wcs = WCS(myHeader)
+    
+    # let's get the image dimensions from the header for our frame
+    # boundary rectangle:
+    nX = myHeader['NAXIS1']
+    nY = myHeader['NAXIS2']
+
+    boundsX = np.asarray([0., nX, nX, 0.], 'float')
+    boundsY = np.asarray([0., 0., nY, nY], 'float')
+
+    boundsX = np.hstack((boundsX, boundsX[0]))
+    boundsY = np.hstack((boundsY, boundsY[0]))
+
+    print(boundsX)
+    print(boundsY)
+    
+    # Now that we've read in the header for the image, use it to
+    # convert pixel coords to sky coords if they didn't come in with
+    # the catalog. Reference:
+    
+    # https://docs.astropy.org/en/stable/wcs/
+
+    # read in the header anyway
+    if not 'ALPHA_J2000' in tDUM.colnames:
+        #wcs = WCS(myHeader)
+        xPix = tDUM['X_IMAGE']
+        yPix = tDUM['Y_IMAGE']
+        RA, DEC = wcs.all_pix2world(xPix, yPix, 0)
+        # now that we've calculated RA, DEC, let's add them to the
+        # table in-memory so that the rest of the routine can carry on
+        # as if they'd come in with the data:
+        tDUM['ALPHA_J2000'] = Column(RA, unit=u.deg)
+        tDUM['DELTA_J2000'] = Column(DEC, unit=u.deg)
+
+        print tDUM['ALPHA_J2000'][0:5]
+        
     UMD_Observatory= EarthLocation(lat=41.32*u.deg, lon=-83.24*u.deg )
     objPos = SkyCoord(ra=tDUM['ALPHA_J2000'][bGood], dec=tDUM['DELTA_J2000'][bGood], frame='fk5')
 

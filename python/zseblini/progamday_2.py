@@ -15,6 +15,7 @@ from numpy import multiply
 # For world coordinate system
 from astropy.wcs import WCS
 
+i=0
 plt.ion()
 
 def go(fCat='GaiaCatalog0.ASC', \
@@ -38,11 +39,10 @@ def go(fCat='GaiaCatalog0.ASC', \
         colBlobLength = "%s_GEN" % (colBlobLength)
         tDUM[colBlobLength] = np.repeat(blobLenDefault, len(tDUM))
 
-#        print(tDUM.colnames)
 
-#        print tDUM[0:3]
 
 # return
+
 
 
 
@@ -52,15 +52,16 @@ def go(fCat='GaiaCatalog0.ASC', \
     #myHeader = fits.getheader('V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit')
     myHeader = fits.getheader(fHeader)
     time=myHeader['DATE-OBS']
-    print(time)
+    #print(time)
 
     # Let's promote the world coordinate system parsing out to here,
     # since we're going to need it whatever we do
     wcs = WCS(myHeader)
 
+
     #Define the good data
     xCut = 5000
-    global bGood = tDUM['FLUX_ISO'] > xCut
+    bGood = tDUM['FLUX_ISO'] > xCut
     # let's get the image dimensions from the header for our frame
     # boundary rectangle:
     nX = myHeader['NAXIS1']
@@ -72,8 +73,6 @@ def go(fCat='GaiaCatalog0.ASC', \
     boundsX = np.hstack((boundsX, boundsX[0]))
     boundsY = np.hstack((boundsY, boundsY[0]))
 
-    #print(boundsX)
-    #print(boundsY)
     
     # Now that we've read in the header for the image, use it to
     # convert pixel coords to sky coords if they didn't come in with
@@ -93,7 +92,7 @@ def go(fCat='GaiaCatalog0.ASC', \
         tDUM['ALPHA_J2000'] = Column(RA, unit=u.deg)
         tDUM['DELTA_J2000'] = Column(DEC, unit=u.deg)
         
-        print tDUM['ALPHA_J2000'][0:5]
+        #print tDUM['ALPHA_J2000'][0:5]
         
     UMD_Observatory= EarthLocation(lat=41.32*u.deg, lon=-83.24*u.deg )
     objPos = SkyCoord(ra=tDUM['ALPHA_J2000'][bGood], dec=tDUM['DELTA_J2000'][bGood], frame='fk5')
@@ -101,13 +100,13 @@ def go(fCat='GaiaCatalog0.ASC', \
     MappedAltAz=objPos.transform_to(AltAz(obstime=time,location=UMD_Observatory))
     myAz = np.asarray(MappedAltAz.az)
     myAlt = np.asarray(MappedAltAz.alt)
-    print(myAlt)
-    print(myAz)
+    #print(myAlt)
+    #print(myAz)
 
     #Scatter plot of detected objects
-    fig4=plt.figure(4)
-    fig4.suptitle('Object Locations in Azimuth and Altitude')
-    fig4.clf()
+    def fig4(fig):
+        fig4.suptitle('Object Locations in Azimuth and Altitude')
+        fig4.clf()
     yLabel4=plt.ylabel('Altitude')
     xLabel4=plt.xlabel('Azimuth')
     ax4=fig4.add_subplot(111)
@@ -142,9 +141,9 @@ def go(fCat='GaiaCatalog0.ASC', \
     EY1=(CY+AS)
     EX2=(CX-AC)
     EY2=(CY-AS)
-    fig5=plt.figure(5)
-    fig5.suptitle('Object End points')
-    fig5.clf()
+    def fig5(fig):
+        fig5.suptitle('Object End points')
+        fig5.clf()
     ax5=fig5.add_subplot(111)
     dum5 = ax5.scatter(EX1,EY1,marker='.')
     dum55=ax5.scatter(EX2,EY2,marker='.')
@@ -174,9 +173,9 @@ def go(fCat='GaiaCatalog0.ASC', \
 
     #Plotting the points in ALTAZ
 
-    fig6=plt.figure(6)
-    fig6.suptitle('Object Locations in Azimuth and Altitude')
-    fig6.clf()
+    def fig6(fig):
+        fig6.suptitle('Object Locations in Azimuth and Altitude')
+        fig6.clf()
     yLabel6=plt.ylabel('Altitude')
     xLabel6=plt.xlabel('Azimuth')
     ax6=fig6.add_subplot(111)
@@ -207,6 +206,35 @@ def go(fCat='GaiaCatalog0.ASC', \
     #print(boundsX2)
     #print(boundsY2)
 
+
+    #SWITCH FIGS
+    switch_figs =  {
+        0: fig4,
+        1: fig5,
+        2: fig6
+    }
+
+
+    def onclick1(fig):
+        global i
+        print(i)
+        fig.clear()
+        i += 1
+        i %= 3
+        switch_figs[i](fig)
+        plt.draw()
+
+#x = np.linspace(0, 2*np.pi, 1000)
+    fig = plt.figure()
+    switch_figs[0](fig)
+    fig.canvas.mpl_connect('button_press_event', lambda event: onclick1(fig))
+
+    plt.show()
+
+
+
+
+    
 #Vector Plot Test
 #x=MappedAltAz.Az
 #y=MappedAltAz.Alt

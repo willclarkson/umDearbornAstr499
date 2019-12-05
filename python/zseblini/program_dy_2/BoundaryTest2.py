@@ -1,4 +1,5 @@
-#Boundary points testing
+#BoundaryTest2
+
 from astropy.table import Table, Column
 import matplotlib.pylab as plt
 from astropy.io import ascii
@@ -157,9 +158,29 @@ def go(fCat='GaiaCatalog0.ASC', \
     }
 
 
-    def onclick1(fig):
+    #def onclick1(fig):
+   #     global i
+   #     print(i)
+  #      fig.clear()
+ #       i += 1
+    #    i %= 3
+   #     switch_figs[i](fig)
+  #      plt.draw()
+
+    
+    #fig = plt.figure()
+    #switch_figs[0](fig)
+    #fig.canvas.mpl_connect('button_press_event', lambda event: onclick1(fig))
+
+    #plt.show()
+
+    #https://matplotlib.org/3.1.1/api/backend_bases_api.html#matplotlib.backend_bases.KeyEvent
+    
+
+
+    def on_key(fig):
         global i
-        print(i)
+        print('you pressed', .key)
         fig.clear()
         i += 1
         i %= 3
@@ -169,23 +190,6 @@ def go(fCat='GaiaCatalog0.ASC', \
     
     fig = plt.figure()
     switch_figs[0](fig)
-    fig.canvas.mpl_connect('button_press_event', lambda event: onclick1(fig))
+    fig.canvas.mpl_connect('key_press_event', on_key(fig))
 
     plt.show()
-
-
-   # def on_key(event):
-    #    global i
-     #   print(i)
-      #  fig.clear()
-       # i += 1
-       # i %= 3
-      #  switch_figs[i](fig)
-      #  plt.draw()
-
-    
-    #fig = plt.figure()
-    #switch_figs[0](fig)
-    #fig.canvas.mpl_connect('key_press_event', on_key)
-
-    #plt.show()

@@ -22,7 +22,7 @@ def go(fCat='GaiaCatalog0.ASC', \
        fHeader='V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit', \
        colBlobLength='A_IMAGE', blobLenDefault=5.):
     
-    """Try quiver plot"""
+    """Plotting the Co-ordinates in a Click-Animated Sequence"""
     
    
     #Objects with Flux > 5000
@@ -41,7 +41,7 @@ def go(fCat='GaiaCatalog0.ASC', \
 
 
 
-# return
+    # return
 
 
 
@@ -224,10 +224,11 @@ def go(fCat='GaiaCatalog0.ASC', \
         switch_figs[i](fig)
         plt.draw()
 
-#x = np.linspace(0, 2*np.pi, 1000)
+    
     fig = plt.figure()
     switch_figs[0](fig)
     fig.canvas.mpl_connect('button_press_event', lambda event: onclick1(fig))
+    
 
     plt.show()
 

@@ -101,8 +101,8 @@ def go(fCat='GaiaCatalog0.ASC', \
             #boundsX1 = np.asarray([0., SnX, SnX, 0.], 'float')
             #boundsY1 = np.asarray([0., 0., SnY, SnY], 'float')
 
-            boundsX2 = np.hstack((SnX, SnX[0]))
-            boundsY2 = np.hstack((SnY, SnY[0]))
+            boundsX2 = np.hstack((SnX,SnX[0]))
+            boundsY2 = np.hstack((SnY,SnY[0]))
             dum666= ax6.plot(boundsX2,boundsY2)
             print(FnX)
             print(FnY)

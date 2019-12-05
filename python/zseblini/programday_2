@@ -12,6 +12,8 @@ from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from matplotlib.pylab import quiver
 from numpy import multiply
 
+
+
 # For world coordinate system
 from astropy.wcs import WCS
 
@@ -42,37 +44,7 @@ def go(fCat='GaiaCatalog0.ASC', \
 
 # return
 
-    fig1=plt.figure(1)
-    fig1.suptitle('Objects with Flux Greater than 5000')
-    fig1.clf()
-    yLabel1=plt.ylabel('Theta')
-    xLabel1=plt.xlabel('Flux')
-    ax=fig1.add_subplot(111)
-    xCut = 5000.
-    bGood = tDUM['FLUX_ISO'] > xCut
-    dum = ax.scatter(tDUM['FLUX_ISO'][bGood],tDUM['THETA_IMAGE'][bGood])
-
-
-    #Histogram of Good Data
-    fig2 = plt.figure(2)
-    fig2.suptitle('Angle of Trail of Objects With Flux Greater than 5000')
-    fig2.clf()
-    ax2 = fig2.add_subplot(211)
-    dum2 = ax2.hist(tDUM['THETA_IMAGE'][bGood], bins=150)
-    label2=plt.ylabel('Selected Data')
-
-    ax22 = fig2.add_subplot(212)
-    filtered_data = sigma_clip(tDUM['THETA_IMAGE'][bGood],sigma=4, iters=5)
-    dum22=ax22.hist(filtered_data, bins=150)
-    xLabel2=plt.xlabel('Theta-')
-    label22=plt.ylabel('Filtered Data')
-
-
-    #Statistical Parameters
-    print np.mean(filtered_data)
-    print np.std(filtered_data)
-
-    #finding time from the fits header
+   #finding time from the fits header
     #hdul = fits.open('V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit')
     ##hdul.info()
     #myHeader = fits.getheader('V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit')

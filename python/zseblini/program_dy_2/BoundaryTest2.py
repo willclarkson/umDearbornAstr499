@@ -156,8 +156,6 @@ def go(fCat='GaiaCatalog0.ASC', \
         1: fig7,
         2: fig8
     }
-
-
     #def onclick1(fig):
    #     global i
    #     print(i)
@@ -173,11 +171,8 @@ def go(fCat='GaiaCatalog0.ASC', \
     #fig.canvas.mpl_connect('button_press_event', lambda event: onclick1(fig))
 
     #plt.show()
-
     #https://matplotlib.org/3.1.1/api/backend_bases_api.html#matplotlib.backend_bases.KeyEvent
-    
-
-
+    #
     def on_key(fig):
         global i
         print('you pressed', .key)
@@ -186,10 +181,11 @@ def go(fCat='GaiaCatalog0.ASC', \
         i %= 3
         switch_figs[i](fig)
         plt.draw()
-
-    
     fig = plt.figure()
     switch_figs[0](fig)
-    fig.canvas.mpl_connect('key_press_event', on_key(fig))
-
+    #fig.canvas.mpl_connect('key_press_event', on_key(fig))
+    
+    x, y =
+    for i in range(0, len(x), 2):
+        plt.plot(x[i:i+2], y[i:i+2])
     plt.show()

@@ -7,7 +7,6 @@ from astropy.io import fits
 from astropy.stats import sigma_clip
 import numpy as np
 import astropy.units as u
-import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from matplotlib.pylab import quiver
@@ -84,32 +83,109 @@ def go(fCat='GaiaCatalog0.ASC', \
             yLabel6=plt.ylabel('Altitude')
             xLabel6=plt.xlabel('Azimuth')
             ax6=fig.add_subplot(111)
-            #dum6 = ax6.scatter(myAz1,myAlt1,marker='.')
-            #dum66 = ax6.scatter(myAz2,myAlt2,marker='.')
+            UMD_Observatory= EarthLocation(lat=41.32*u.deg, lon=-83.24*u.deg )
+
+               #GEOMETRY OF THE END POINTS OF EACH ELIPSE
+            EL=tDUM['A_IMAGE']*[bGood]
+            ELVector=np.array(EL)
+            arL=len(EL)
+            Divisor=[2]*arL
+            Len2=np.divide(ELVector,Divisor)
+            ET=tDUM['THETA_IMAGE']*[bGood]
+            Thet=np.array(ET)
+            cosT=np.cos(Thet)
+            sinT=np.sin(Thet)
+            AS=np.multiply(Len2,sinT)
+            AC=np.multiply(Len2,cosT)
+            ECX=tDUM['X_IMAGE']*[bGood]
+            ECY=tDUM['Y_IMAGE']*[bGood]
+            CX=np.array(ECX)
+            CY=np.array(ECY)
+    
+            #PLOTTING ENDPOINTS
+            EX1=(CX+AC)
+            EY1=(CY+AS)
+            EX2=(CX-AC)
+            EY2=(CY-AS)
+            #ENDPOINT1 in ALTAZ
+            RA1, DEC1 = wcs.all_pix2world(EX1, EY1, 0)
+            tDUM['END_POINT1_RA'] = Column(RA1, unit=u.deg)
+            tDUM['END_POINT1_DEC']= Column(DEC1, unit=u.deg)
+
+            objPos1 = SkyCoord(ra= tDUM['END_POINT1_RA'], dec=tDUM['END_POINT1_DEC'], frame='fk5')
+            MappedAltAz1=objPos1.transform_to(AltAz(obstime=time,location=UMD_Observatory))
+            myAz1 = np.asarray(MappedAltAz1.az)
+            myAlt1 = np.asarray(MappedAltAz1.alt)
+
+            #ENDPOINT2 in ALTAZ
+            RA2, DEC2 = wcs.all_pix2world(EX2, EY2, 0)
+            tDUM['END_POINT2_RA'] = Column(RA2, unit=u.deg)
+            tDUM['END_POINT2_DEC']= Column(DEC2, unit=u.deg)
+    
+            objPos2 = SkyCoord(ra= tDUM['END_POINT2_RA'], dec=tDUM['END_POINT2_DEC'], frame='fk5')
+            MappedAltAz2=objPos2.transform_to(AltAz(obstime=time,location=UMD_Observatory))
+            myAz2 = np.asarray(MappedAltAz2.az)
+            myAlt2 = np.asarray(MappedAltAz2.alt)
+
+            dum6 = ax6.scatter(myAz1,myAlt1,marker='.')
+            dum66 = ax6.scatter(myAz2,myAlt2,marker='.')
+
+            
+            
+            #plt.show()
+
+
 
             #Finding the border in ALTAZ
     
             FnY = myHeader['NAXIS1']
             FnX = myHeader['NAXIS2']
-            boundsX0 = np.asarray([0.1, FnX, FnX, 0.1], 'float')
-            boundsY0 = np.asarray([0.1, 0.1, FnY, FnY], 'float')
-            SnX,SnY =wcs.all_pix2world(boundsX0, boundsY0, 0)
-            #tDUM['TnX'] = Column(SnX, unit=u.deg)
-            #tDUM['TnY'] = Column(SnY, unit=u.deg)
-    
-    
+            SnXRA,SnYDEC =wcs.all_pix2world(FnX, FnY, 0)
+            Zeros1=1
+            Zeros=1
+            ZerosRA,ZerosDEC=wcs.all_pix2world(Zeros1,Zeros,0)
             #boundsX1 = np.asarray([0., SnX, SnX, 0.], 'float')
             #boundsY1 = np.asarray([0., 0., SnY, SnY], 'float')
-
-            boundsX2 = np.hstack((SnX,SnX[0]))
-            boundsY2 = np.hstack((SnY,SnY[0]))
+            #boundsX2 = np.hstack((SnX,SnX[0]))
+            #boundsY2 = np.hstack((SnY,SnY[0]))
+            #boundsX2 = np.hstack((SnX, SnX[0]))
+            #boundsY2 = np.hstack((SnY, SnY[0]))
+            #objPos = SkyCoord(ra=boundsX2, dec=boundsX2, frame='fk5')
+            #tDUM['TnX'] = Column(SnX, unit=u.deg)
+            #tDUM['TnY'] = Column(SnY, unit=u.deg)
+            objPos = SkyCoord(ra=SnXRA, dec=SnYDEC, unit='deg', frame='fk5')
+            objPosZeros = SkyCoord(ra=ZerosRA, dec=ZerosDEC, unit='deg', frame='fk5')
+            MappedAltAz4=objPosZeros.transform_to(AltAz(obstime=time,location=UMD_Observatory))
+            UMD_Observatory= EarthLocation(lat=41.32*u.deg, lon=-83.24*u.deg )
+            MappedAltAz3=objPos.transform_to(AltAz(obstime=time,location=UMD_Observatory))
+            myAz3 = np.asarray(MappedAltAz3.az)
+            myAlt3 = np.asarray(MappedAltAz3.alt)
+            myAzzeros = np.asarray(MappedAltAz4.az)
+            myAltzeros = np.asarray(MappedAltAz4.alt)
+            #print(myAzzeros)
+            #print(myAltzeros)
+            print(FnX)
+            print(FnY)
+            print(SnXRA)
+            print(SnYDEC)
+            print(myAz3)
+            print(myAlt3)
+            #boundsX0 = np.asarray([0.1, MappedAltAz3.az, MappedAltAz3.az, 0.1], 'float')
+            #boundsY0 = np.asarray([0.1, 0.1, MappedAltAz3.alt, MappedAltAz3.alt], 'float')
+            boundsX0 = np.asarray([myAzzeros, myAz3, myAz3,myAzzeros], 'float')
+            boundsY0 = np.asarray([myAltzeros,myAltzeros, myAlt3, myAlt3], 'float')
+            print(boundsX0)
+            print(boundsY0)
+            #boundsX2 = np.hstack((myAz3,myAz3[0]))
+            #boundsY2 = np.hstack((myAlt3,myAlt3[0]))
+            boundsX2 = np.hstack((boundsX0, boundsX0[0]))
+            boundsY2 = np.hstack((boundsY0, boundsY0[0]))
             dum666= ax6.plot(boundsX2,boundsY2)
-            print(SnX)
-            print(SnY)
-            print(boundsX2)
-            print(boundsY2)
 
-
+           
+            #dum666= ax6.plot(boundsX2,boundsY2)
+            #print(boundsX2)
+            #print(boundsY2)
     def fig7(fig):
             fig.suptitle('Object Locations in Image Co-Ords')
             fig.clf()
@@ -151,9 +227,7 @@ def go(fCat='GaiaCatalog0.ASC', \
 
     #SWITCH FIGS
     switch_figs =  {
-        0: fig6,
-        1: fig7,
-        2: fig8
+        0: fig6
     }
 
 
@@ -162,10 +236,9 @@ def go(fCat='GaiaCatalog0.ASC', \
         print(i)
         fig.clear()
         i += 1
-        i %= 3
+        i %= 1
         switch_figs[i](fig)
         plt.draw()
-
     
     fig = plt.figure()
     switch_figs[0](fig)

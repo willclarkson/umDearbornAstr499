@@ -11,6 +11,8 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from matplotlib.pylab import quiver
 from numpy import multiply
+import cgkit1 as cg
+from cgkit import SlideShow
 from astropy.utils import iers
 iers.Conf.iers_auto_url.set('ftp://cddis.gsfc.nasa.gov/pub/products/iers/finals2000A.all')
 
@@ -242,6 +244,19 @@ def go(fCat='GaiaCatalog0.ASC', \
     fig = plt.figure(6)
     plt.draw()
     fig6(fig)
+    F= fHeader + "Figure"+ ".jpg"
+    plt.savefig(F)
 
 
     plt.show()
+
+    # File: slides.py
+
+    SlideShow(
+        slides = [
+                Slide(F, XFade(1.0) )])
+              #  Slide("*.jpg", XFade(1.0, 0.3) ),
+               # Slide("*.jpg", XCube(2.0) ),
+                #Slide("*.jpg", XFade(0.5) )
+                #]"""
+

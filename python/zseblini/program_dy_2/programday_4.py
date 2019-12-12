@@ -11,8 +11,7 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from matplotlib.pylab import quiver
 from numpy import multiply
-import cgkit1 as cg
-from cgkit import SlideShow
+import matplotlib.animation as animation
 from astropy.utils import iers
 iers.Conf.iers_auto_url.set('ftp://cddis.gsfc.nasa.gov/pub/products/iers/finals2000A.all')
 
@@ -60,7 +59,7 @@ def go(fCat='GaiaCatalog0.ASC', \
     #myHeader = fits.getheader('V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit')
     myHeader = fits.getheader(fHeader)
     time=myHeader['DATE-OBS']
-    #print(time)
+
 
     # Let's promote the world coordinate system parsing out to here,
     # since we're going to need it whatever we do
@@ -99,9 +98,7 @@ def go(fCat='GaiaCatalog0.ASC', \
         # as if they'd come in with the data:
         tDUM['ALPHA_J2000'] = Column(RA, unit=u.deg)
         tDUM['DELTA_J2000'] = Column(DEC, unit=u.deg)
-        
-        #print tDUM['ALPHA_J2000'][0:5]
-        
+                
     #objPos = SkyCoord(ra=tDUM['ALPHA_J2000'][bGood], dec=tDUM['DELTA_J2000'][bGood], frame='fk5')
     objPosSTARS = SkyCoord(ra=tDUM['ALPHA_J2000'][bGood], dec=tDUM['DELTA_J2000'][bGood], frame='fk5')
 
@@ -143,8 +140,8 @@ def go(fCat='GaiaCatalog0.ASC', \
 
 
 
-    #print(myAlt)
-    #print(myAz)
+    
+
     Con=[]
     Con1=[] 
 
@@ -162,15 +159,13 @@ def go(fCat='GaiaCatalog0.ASC', \
 
         boundsSkyra,boundsSkydec=wcs.all_pix2world(boundsX, boundsY, 0)
         boundsSky=SkyCoord(ra=boundsSkyra, dec=boundsSkydec, unit='deg', frame='fk5')
-        print("fig6 DEBUG:", objPosSTARS.ra.degree, boundsSky.ra.degree)
+        #print("fig6 DEBUG:", objPosSTARS.ra.degree, boundsSky.ra.degree)
         MappedAltAzSky=boundsSky.transform_to(AltAz(obstime=time,location=UMD_Observatory))
         myAzSky = np.asarray(MappedAltAzSky.az)
         myAltSky = np.asarray(MappedAltAzSky.alt)
         MappedAltAz3=objPos.transform_to(AltAz(obstime=time,location=UMD_Observatory))
         myAz3 = np.asarray(MappedAltAz3.az)
         myAlt3 = np.asarray(MappedAltAz3.alt)
-        print(myAzSky)
-        print(myAltSky)
         dum66666= ax6.plot(myAzSky,myAltSky)
         Zeros1=2
         Zeros=2
@@ -179,14 +174,11 @@ def go(fCat='GaiaCatalog0.ASC', \
         MappedAltAz0=objPosZeros.transform_to(AltAz(obstime=time,location=UMD_Observatory))
         myAz0 = np.asarray(MappedAltAz0.az)
         myAlt0 = np.asarray(MappedAltAz0.alt)
-        #print(myAz0)
-        #print(myAlt0)
         boundsX0 = np.array([myAz0, myAz3, myAz3, myAz0], 'float')
         boundsY0 = np.array([myAlt0, myAlt3,myAlt0, myAlt3], 'float')
         boundsX2 = np.hstack((boundsX0, boundsX0[0]))
         boundsY2 = np.hstack((boundsY0, boundsY0[0]))
-        #print(boundsX0)
-        #print(boundsY0)
+
         #dum666= ax6.plot(boundsX2,boundsY2)
         
         # Let's try building a quiver plot out of the start and end points
@@ -201,7 +193,7 @@ def go(fCat='GaiaCatalog0.ASC', \
 
         # let's try a less clever method to plot up the [1,2] pairs:
 
-        print("DEBUG - azTail, azHead", np.shape(myAzTail), np.shape(myAzHead))
+        #print("DEBUG - azTail, azHead", np.shape(myAzTail), np.shape(myAzHead))
         for iRow in range(np.size(myAzTail)):
             blah = ax6.plot([myAzTail[iRow], myAzHead[iRow]], [myAltTail[iRow],myAltHead[iRow]]\
                 , color='c')
@@ -238,25 +230,18 @@ def go(fCat='GaiaCatalog0.ASC', \
             ax6.plot([x1,x2],[y1,y2],'k-')
         #for i in np.arange(0,len(Con)):
             connectpoints(Con,Con1,i-1,i)
+    
 
     print("INFO - time to execute RA->AltAz: %.3e seconds" % (systemTime.time()-tZero))
 
     fig = plt.figure(6)
     plt.draw()
     fig6(fig)
-    F= fHeader + "Figure"+ ".jpg"
+    F= fHeader + "Figure1"+ ".jpg"
     plt.savefig(F)
-
-
     plt.show()
+    line_ani = animation.FuncAnimation(fig6, frames=None, event_source=None, interval=50, blit=True, repeat=False,)
+    line_ani.save('FigAni.mp4')
+    
 
     # File: slides.py
-
-    SlideShow(
-        slides = [
-                Slide(F, XFade(1.0) )])
-              #  Slide("*.jpg", XFade(1.0, 0.3) ),
-               # Slide("*.jpg", XCube(2.0) ),
-                #Slide("*.jpg", XFade(0.5) )
-                #]"""
-

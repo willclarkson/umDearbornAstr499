@@ -1,0 +1,31 @@
+# supplemental files not to track
+*~
+*/#*
+dump/
+#*#
+*e4p
+frost*
+
+# stuff we don't want to track
+setup/mytelescopes.py
+doc/_build/
+ppident_asteroids*
+ppident_variablestars*
+.idea/
+
+### Python ###
+## Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.eric6project/
+
+# results stuff
+*.db
+*.ldac
+*.html
+*.xml
+*.dat
+*.lst
+*.cat
+**/.diagnostics

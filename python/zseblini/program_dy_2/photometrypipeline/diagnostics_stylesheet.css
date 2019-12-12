@@ -1,0 +1,77 @@
+body {
+  padding-left: 1em;
+  font-family: Helvetica, Geneva, Arial,
+        SunSans-Regular, sans-serif;
+  color: black;
+  background-color: white;
+}
+
+p.caption {
+    font-size: 80%;
+    color: gray;
+}
+
+div.scrollbox {
+    overflow: scroll;
+    height: 50px;
+}
+
+h1 {
+  font-family: Helvetica, Geneva, Arial, SunSans-Regular, sans-serif;
+  background-color: #9999dd;
+}
+
+h2 {
+  font-family: Helvetica, Geneva, Arial, SunSans-Regular, sans-serif;
+  background-color: #bbbbee;
+}
+
+h3 {
+  font-family: Helvetica, Geneva, Arial, SunSans-Regular, sans-serif;
+  background-color: #ddddff;
+}
+
+.parent_image {
+  position: relative;
+  top: 0;
+  left: 0;
+}
+.back_image {
+  position: relative;
+  z-index:1;
+  top: 0;
+  left: 0;
+}
+.front_image {
+  position: absolute;
+  z-index:2;
+  top: 0;
+  left: 0;
+}
+
+
+table.gridtable {
+	font-family: Helvetica, Geneva, Arial,
+        SunSans-Regular, sans-serif;
+	color:#333333;
+	white-space: nowrap;	
+	border-width: 1px;
+	border-color: #666666;
+	border-collapse: collapse;
+}
+
+table.gridtable th {
+	border-width: 1px;
+	padding: 4px;
+	border-style: solid;
+	border-color: #666666;
+	background-color: #dedede;
+}
+
+table.gridtable td {
+	border-width: 1px;
+	padding: 4px;
+	border-style: solid;
+	border-color: #666666;
+	background-color: #ffffff;
+}

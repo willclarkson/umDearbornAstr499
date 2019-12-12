@@ -236,12 +236,12 @@ def go(fCat='GaiaCatalog0.ASC', \
 
     fig = plt.figure(6)
     plt.draw()
-    fig6(fig)
+    fig6(fig)    
     F= fHeader + "Figure1"+ ".jpg"
     plt.savefig(F)
-    plt.show()
-    line_ani = animation.FuncAnimation(fig6, frames=None, event_source=None, interval=50, blit=True, repeat=False,)
-    line_ani.save('FigAni.mp4')
+    # plt.show()
+    #line_ani = animation.FuncAnimation(fig6, frames=None, event_source=None, interval=50, blit=True, repeat=False)
+    #line_ani.save('FigAni.mp4')
     
 
     # File: slides.py

@@ -6,13 +6,16 @@ from astropy.io import fits
 from astropy.stats import sigma_clip
 import numpy as np
 import astropy.units as u
-import astropy.units as u
+#import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
 from matplotlib.pylab import quiver
 from numpy import multiply
 import matplotlib.animation as animation
+from matplotlib.animation import FFMpegWriter
 from astropy.utils import iers
+from astropy.stats import histogram
+
 iers.Conf.iers_auto_url.set('ftp://cddis.gsfc.nasa.gov/pub/products/iers/finals2000A.all')
 
 # for timing execution
@@ -29,7 +32,7 @@ UMD_Observatory= EarthLocation(lat=41.32*u.deg, lon=-83.24*u.deg )
 
 def go(fCat='GaiaCatalog0.ASC', \
        fHeader='V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit', \
-       colBlobLength='A_IMAGE', blobLenDefault=5., blobSF=1.):
+       colFilteredData='FilteredData',colBlobLength='A_IMAGE', blobLenDefault=5., blobSF=7.):
     
     """Plotting the Co-ordinates in a Click-Animated Sequence"""
     
@@ -108,11 +111,11 @@ def go(fCat='GaiaCatalog0.ASC', \
     
     # replicate zahra's computation of the head of the arrow, 
     # but vectorially and only for the [bgood] items
-    deltaX = tDUM['A_IMAGE'][bGood]*np.cos(tDUM['THETA_IMAGE'][bGood])*blobSF
-    deltaY = tDUM['A_IMAGE'][bGood]*np.sin(tDUM['THETA_IMAGE'][bGood])*blobSF
+    deltaX = tDUM['A_IMAGE']*np.cos(tDUM['THETA_IMAGE'])*blobSF
+    deltaY = tDUM['A_IMAGE']*np.sin(tDUM['THETA_IMAGE'])*blobSF
 
-    xTail = tDUM['X_IMAGE'][bGood]
-    yTail = tDUM['Y_IMAGE'][bGood]
+    xTail = tDUM['X_IMAGE']
+    yTail = tDUM['Y_IMAGE']
 
 
     xHead = xTail + deltaX
@@ -137,20 +140,73 @@ def go(fCat='GaiaCatalog0.ASC', \
     myAzTail = np.asarray(tailAltAz.az)
     myAltTail = np.asarray(tailAltAz.alt)
     
-
-
+    # now let's populate our data table with them
+    dAz = (myAzHead - myAzTail)/blobSF
+    dAl = (myAltHead - myAltTail)/blobSF
+    tDUM['A_ALTAZ'] = np.sqrt(dAz**2 + dAl**2)*u.deg
+    tDUM['THETA_ALTAZ'] = np.degrees(np.arctan(dAl/dAz))*u.deg
 
     
+    thisFits=fHeader
+    Name=thisFits.split(".")[0]
 
-    Con=[]
-    Con1=[] 
+    # Statistics Gathering
+
+    # initialize an empty table
+    TableOfStats = Table()
+    
+    # let's specify a column name:
+    sCol = 'FLUX_ISO'
+
+    for sCol in ['FLUX_ISO','A_IMAGE','THETA_IMAGE', 'A_ALTAZ','THETA_ALTAZ']:
+    
+        FilteredData1= sigma_clip(tDUM[sCol][bGood],sigma=4, iters=5)
+        filtered_data=np.array(FilteredData1)
+        ###print(filtered_data)
+        fdmean=np.mean(filtered_data)
+        fdStDev=np.std(filtered_data)
+        #statsVector=np.array([fdmean,fdStDev])
+        #print("FilteredData %3 " % (filtered_data))
+        ###print("FilteredData Mean %.3e " % (fdmean))
+        ###print("FilteredData Standard Deviation %.3e " % ( fdStDev))
+        # StatsColNames=[sCol + '_mu',sCol + '_std']
+        #TableOfStats=Table(statsVector*tDUM['FLUX_ISO'].unit,names=StatsColNames)
+
+        # now let's just stick in each column to the existing table:
+        TableOfStats[sCol+'_mu'] = [fdmean]*tDUM[sCol].unit
+        TableOfStats[sCol+'_std'] = [fdStDev]*tDUM[sCol].unit
+    
+
+    print(TableOfStats)
+    
+    #if colFilteredData in tDUM.colnames:
+    #    vfiltered_data = tDUM[colFilteredData]
+   # else:
+    #    print("programday_1 INFO - Porcessing Filtered Data" )
+     #   colFilteredData= "%s_GEN" % (colFilteredData)
+      #  tDUM[colFilteredData]=FilteredDataInput
+        
+    #print tDUM[0:3]
+    def fig5(fig):
+        yLabel5=plt.ylabel('Filtered Data')
+        #xLabel5=plt.xlabel('Azimut')
+        ax5=fig.add_subplot(111)
+        dum5=histogram(filtered_data,bins='blocks')
+        dum55=histogram(filtered_data,bins='knuth')
+        dum555=histogram(filtered_data,bins='scott')
+        dum5555=histogram(filtered_data,bins='freedman')
+        #dum55=ax5.plot(dum5)
+        print(dum5)
+        print(dum55)
+        print(dum555)
+        print(dum5555)
 
     def fig6(fig):
-        fig.suptitle('Object Locations in Azimuth and Altitude')
-        fig.clf()
+        #fig.suptitle('Object Locations in Azimuth and Altitude')
         yLabel6=plt.ylabel('Altitude')
         xLabel6=plt.xlabel('Azimuth')
         ax6=fig.add_subplot(111)
+        plt.axis([111,113,29,30])
         
         FnY = np.float(myHeader['NAXIS1'])
         FnX = np.float(myHeader['NAXIS2'])
@@ -180,10 +236,16 @@ def go(fCat='GaiaCatalog0.ASC', \
         boundsY2 = np.hstack((boundsY0, boundsY0[0]))
 
         #dum666= ax6.plot(boundsX2,boundsY2)
+
+        myAzHeadTrim = myAzHead[bGood]
+        myAzTailTrim = myAzTail[bGood]
+        myAltHeadTrim = myAltHead[bGood]
+        myAltTailTrim = myAltTail[bGood]
+        
         
         # Let's try building a quiver plot out of the start and end points
-        dAz = myAzHead - myAzTail
-        dAlt = myAltHead - myAltTail
+        dAz = myAzHeadTrim - myAzTailTrim
+        dAlt = myAltHeadTrim - myAltTailTrim
 
         # let's try adding a quiver plot in data units now:
         #quiv6 = ax6.quiver(myAzTail, myAltTail, dAlt, dAz, units='xy', angles='uv', color='r')
@@ -194,23 +256,26 @@ def go(fCat='GaiaCatalog0.ASC', \
         # let's try a less clever method to plot up the [1,2] pairs:
 
         #print("DEBUG - azTail, azHead", np.shape(myAzTail), np.shape(myAzHead))
-        for iRow in range(np.size(myAzTail)):
-            blah = ax6.plot([myAzTail[iRow], myAzHead[iRow]], [myAltTail[iRow],myAltHead[iRow]]\
+        for iRow in range(np.size(myAzTailTrim)):
+            blah = ax6.plot([myAzTailTrim[iRow], myAzHeadTrim[iRow]], \
+                            [myAltTailTrim[iRow],myAltHeadTrim[iRow]]\
                 , color='c')
-            blah = ax6.plot(myAzTail[iRow], myAltTail[iRow]\
+            blah = ax6.plot(myAzTailTrim[iRow], myAltTailTrim[iRow]\
                 , color='c', marker='o', markersize=2)
+
+       
+       
                 
 
-        ax6.set_title('NewPlot')
-        fig.savefig('shouldBeQuiver.jpg')
+        ax6.set_title(Name)
+        #fig.savefig('shouldBeQuiver.jpg')
         #fig = plt.figure()
         #plt.draw()
         #fig6(fig)
         #plt.show()
-        return
 
         #CONNECTIONS
-        AZ12=np.hstack((myAz1,myAz2))
+        """AZ12=np.hstack((myAz1,myAz2))
         
         for i in range(0, len(AZ12), 1):
             if i % 2 ==0:
@@ -229,17 +294,21 @@ def go(fCat='GaiaCatalog0.ASC', \
             y1, y2 = y[p1], y[p2]
             ax6.plot([x1,x2],[y1,y2],'k-')
         #for i in np.arange(0,len(Con)):
-            connectpoints(Con,Con1,i-1,i)
+           # connectpoints(Con,Con1,i-1,i)"""
     
 
     print("INFO - time to execute RA->AltAz: %.3e seconds" % (systemTime.time()-tZero))
 
-    fig = plt.figure(6)
+    SaveUnder=Name + "figure" +".jpg"
+    fig = plt.figure()
+    
     plt.draw()
-    fig6(fig)    
-    F= fHeader + "Figure1"+ ".jpg"
-    plt.savefig(F)
-    # plt.show()
+    fig6(fig)
+    plt.savefig(SaveUnder)
+    fig5(fig)
+    plt.show()
+    return TableOfStats
+        
     #line_ani = animation.FuncAnimation(fig6, frames=None, event_source=None, interval=50, blit=True, repeat=False)
     #line_ani.save('FigAni.mp4')
     

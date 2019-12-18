@@ -1,12 +1,13 @@
 #
-# doAnim.py
+# Doanim.Py
 #
 
-# 2019-12-12 WIC & ZCS - call the animation maker using several images
+# 2019-12-12 Wic& ZCS - call the animation maker using several images
 
 import programday_4
 import glob
 import os
+import subprocess
 from astropy.table import Table, vstack
 
 def doMany(srchString='Comet_R',catTail='ASC', Verbose=True):
@@ -41,7 +42,11 @@ def doMany(srchString='Comet_R',catTail='ASC', Verbose=True):
         MasterTable=vstack([MasterTable,ThisTable])
         #print(ThisTable)
         # stack the table
+
         
+       # thisMov='%s.mp4' % (srchString)
         
-        #os.system("ffmpeg -r 1 -i *.jpg -vcodec mpeg4 -y movie1.mp4")
+    os.system("ffmpeg -r 1 -i *.jpg -vcodec mpeg4 -y 'thisMov'.mp4")
+    ffmpeg.view()
+    #"ffmpeg.view")
     print(MasterTable)

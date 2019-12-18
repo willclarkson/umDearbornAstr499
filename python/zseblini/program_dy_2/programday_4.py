@@ -9,7 +9,7 @@ import numpy as np
 import astropy.units as u
 #import astropy.units as u
 from astropy.time import Time
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz
+from astropy.coordinates import SkyCoord, EarthLocation, ITRS, AltAz
 from matplotlib.pylab import quiver
 from numpy import multiply
 import matplotlib.animation as animation
@@ -26,18 +26,22 @@ import time as systemTime
 
 # For world coordinate system
 from astropy.wcs import WCS
-tZero = systemTime.time()
+Tzero = systemTime.time()
 
 i=0
-plt.ion()
+plt.ioff()
 UMD_Observatory= EarthLocation(lat=41.32*u.deg, lon=-83.24*u.deg )
 
 
 def go(fCat='GaiaCatalog0.ASC', \
        fHeader='V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit', \
-       colFilteredData='FilteredData',colBlobLength='A_IMAGE', blobLenDefault=5., blobSF=7.):
+       colFilteredData='FilteredData',colBlobLength='A_IMAGE', blobLenDefault=5., blobSF=7., \
+       frameName=''):
     
     """Plotting the Co-ordinates in a Click-Animated Sequence"""
+
+    # for ''safety'' for the figures, close everything plotted here
+    plt.close('all')
     
     #Objects with Flux > 5000
     # tDUM = Table.read('GaiaCatalog0.ASC', format='ascii.sextractor')
@@ -74,6 +78,7 @@ def go(fCat='GaiaCatalog0.ASC', \
     #Define the good data
     xCut = 4000
     bGood = tDUM['FLUX_ISO'] > xCut
+    
     # let's get the image dimensions from the header for our frame
     # boundary rectangle:
     nX = myHeader['NAXIS1']
@@ -152,22 +157,56 @@ def go(fCat='GaiaCatalog0.ASC', \
     thisFits=fHeader
     Name=thisFits.split(".")[0]
 
+    print("DEBUG -- input catalog name:",Name)
+    
+    # Looking at the Objects that we want to Trace
+   
+    Brightest= np.amax(tDUM['FLUX_ISO'] )
+    bBright=np.equal(tDUM['FLUX_ISO'],  Brightest)
+
+    #p
+    #return
+    Tracking_ObjectX=xTail[bBright]
+    Tracking_ObjectY=yTail[bBright]
+    #print(Tracking_ObjectX)
+    #print(Tracking_ObjectY)
+    trackRA,trackDEC = wcs.all_pix2world(Tracking_ObjectX, Tracking_ObjectY, 0)
+    objTrackingSTARS =  SkyCoord(ra=trackRA, dec=trackDEC, frame='fk5', unit='deg')
+    c_ITRS = objTrackingSTARS.transform_to(ITRS(obstime=time))
+    # Calculate local apparent Hour Angle (HA), wrap at 0/24h
+    local_ha = UMD_Observatory.lon - c_ITRS.spherical.lon
+    local_ha.wrap_at(24*u.hourangle, inplace=True)
+    # Calculate local apparent Declination
+    local_dec = c_ITRS.spherical.lat
+    
+    #print("Local apparent HA, Dec={} {}".format(local_ha.to_string(unit=u.hourangle, sep=':'), local_dec.to_string(unit=u.deg, sep=':', alwayssign=True) ))
+    TrackingStarsAltAz=objTrackingSTARS.transform_to(AltAz(obstime=time,location=UMD_Observatory))
+    trackAz=TrackingStarsAltAz.az
+    trackAlt=TrackingStarsAltAz.alt
+    print("Tracking Star DEBUG:", trackAlt.degree, trackAz.degree)
+    #print(trackAlt)
+    #print(trackAz)
+
+    #return
+
+    
     # Statistics Gathering
     # SNR of the image
     ImgMean=np.mean(Img)
     ImgStd=np.std(Img)
-    print(ImgMean)
-    print(ImgStd)
+    #print(ImgMean)
+    #print(ImgStd)
     SNR=np.log10(ImgMean/ImgStd)
-    print(SNR)
-    ExposureT=myHeader['EXPTIME']
+    #print(SNR)
+    # Using AstroPyStats to find the SNR a diff way
+    #ExposureT=myHeader['EXPTIME']
     
     
-    SNRAstr=signal_to_noise_oir_ccd(t=ExposureT,source_eps, sky_eps, dark_eps, rd, npix=9)
+    #SNRAstr=signal_to_noise_oir_ccd(t=ExposureT,source_eps, sky_eps, dark_eps, rd, npix=9)
 
 
     
-    return
+    #return
     
 
     # initialize an empty table
@@ -197,10 +236,13 @@ def go(fCat='GaiaCatalog0.ASC', \
         TableOfStats[sCol+'_std'] = [fdStDev]*tDUM[sCol].unit
     
    # Few things to Add to the Table after the processed Statistics
-    TableOfStats['Target_Object_Alt']=myHeader['ALT_OBJ']*u.deg
-    TableOfStats['Target_Object_Az']=myHeader['AZ_OBJ']*u.deg
+    TableOfStats['Target_Object_Alt']= trackAlt.degree 
+    TableOfStats['Target_Object_Az']= trackAz.degree
     TableOfStats['SNR']=(SNR)*u.dB    
-    
+
+    # let's call fig6 here.
+    #SaveUnder=Name + "figure" +".jpg"
+    #fig6(SaveUnder, figNum=6, closeAllFigsFirst=True)
    
         
     #print tDUM[0:3]
@@ -213,17 +255,34 @@ def go(fCat='GaiaCatalog0.ASC', \
         dum555=histogram(filtered_data,bins='scott')
         dum5555=histogram(filtered_data,bins='freedman')
         #dum55=ax5.plot(dum5)
-        print(dum5)
-        print(dum55)
-        print(dum555)
-        print(dum5555)
+        #print(dum5)
+        #print(dum55)
+        #print(dum555)
+        #print(dum5555)
+        
+    def fig6(imgName='blah.png', figNum=6, closeAllFigsFirst=True):
 
-    def fig6(fig):
-        #fig.suptitle('Object Locations in Azimuth and Altitude')
-        yLabel6=plt.ylabel('Altitude')
-        xLabel6=plt.xlabel('Azimuth')
+        """Updated figure 6 to generate the figure within this method"""
+
+        if closeAllFigsFirst:
+            plt.close('all')
+            
+        fig = plt.figure(figNum)
         ax6=fig.add_subplot(111)
-        #plt.axis([111,113,29,30])
+        ax6.set_xlabel('Azimuth')
+        ax6.set_ylabel('Altitude')
+
+        # 2019-12-18 - commented out the hardcoding of the limits for now
+        #ax6.set_xlim(111., 113.)
+        #ax6.set_ylim(29., 30.)
+        
+        #fig.suptitle('Object Locations in Azimuth and Altitude')
+        #yLabel6=plt.ylabel('Altitude')
+        #xLabel6=plt.xlabel('Azimuth')
+        #ax6=fig.add_subplot(111)
+        plt.axis([111,125,27,45])
+        
+
         
         FnY = np.float(myHeader['NAXIS1'])
         FnX = np.float(myHeader['NAXIS2'])
@@ -251,6 +310,7 @@ def go(fCat='GaiaCatalog0.ASC', \
         boundsY0 = np.array([myAlt0, myAlt3,myAlt0, myAlt3], 'float')
         boundsX2 = np.hstack((boundsX0, boundsX0[0]))
         boundsY2 = np.hstack((boundsY0, boundsY0[0]))
+        trackingstars=ax6.plot(trackAz,trackAlt, markersize=5,color='r')
 
         #dum666= ax6.plot(boundsX2,boundsY2)
 
@@ -279,13 +339,13 @@ def go(fCat='GaiaCatalog0.ASC', \
                 , color='c')
             blah = ax6.plot(myAzTailTrim[iRow], myAltTailTrim[iRow]\
                 , color='c', marker='o', markersize=2)
-        lala=ax6.plot(myHeader['AZ_OBJ'],myHeader['ALT_OBJ'], marker='o', markersize=5)
-       
-       
+        #lala=ax6.plot(myHeader['AZ_OBJ'],myHeader['ALT_OBJ'], marker='o', markersize=5)
                 
 
         ax6.set_title(Name)
-        #fig.savefig('shouldBeQuiver.jpg')
+
+        fig.show()
+        fig.savefig(imgName)
         #fig = plt.figure()
         #plt.draw()
         #fig6(fig)
@@ -293,16 +353,26 @@ def go(fCat='GaiaCatalog0.ASC', \
 
         #CONNECTIONS
 
-    print("INFO - time to execute RA->AltAz: %.3e seconds" % (systemTime.time()-tZero))
+   # print("INFO - time to execute RA->AltAz: %.3e seconds" % (systemTime.time()-tZero))
 
-    SaveUnder=Name + "figure" +".jpg"
-    fig = plt.figure()
+
+    # 2019-12-18 updated this to accept an input argument
+    if len(frameName) < 3:
+           SaveUnder=Name + "figure" +".jpg"
+    else:
+           SaveUnder = frameName[:] # copy rather than reference
+    fig6(SaveUnder, figNum=6, closeAllFigsFirst=True)
+    #plt.close('all')
+
+    ##fig = plt.figure(6)
+    ##fig.clf()
     
-    plt.draw()
-    fig6(fig)
-    plt.savefig(SaveUnder)
-    fig5(fig)
-    plt.show()
+    #plt.draw()
+    ##fig6(fig, imgName=SaveUnder)
+    #plt.show()
+    #fig.savefig(SaveUnder)
+    #fig5(fig)
+    #plt.show()
     return TableOfStats
 
     # File: slides.py

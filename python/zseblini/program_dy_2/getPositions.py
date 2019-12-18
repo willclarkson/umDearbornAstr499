@@ -34,6 +34,8 @@ def go(srchString='Comet_R', catTail='ASC', Verbose=True, \
 
     # let's try constructing dirTop using the source for this module:
     dirTop = testInspect()
+    if len(dirTop) < 1:
+        dirTop = os.getcwd()
 #    dirTop = '/Users/zseblini/projects/umDearbornAstr499/python/zseblini/program_dy_2'
     dirPars = 'params'
 
@@ -41,6 +43,7 @@ def go(srchString='Comet_R', catTail='ASC', Verbose=True, \
     pathSrcPars = '%s/%s/%s' % (dirTop, dirPars, filPars)
     pathSrcConf = '%s/%s/%s' % (dirTop, dirPars, filConfig)
 
+    print("getPositions.go INFO - path for source params:", pathSrcPars, os.access(pathSrcPars, os.R_OK))
     if os.access(pathSrcPars, os.R_OK):
         shutil.copy2(pathSrcPars, os.getcwd())
 

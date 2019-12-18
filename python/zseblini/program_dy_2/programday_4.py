@@ -4,6 +4,7 @@ from astropy.io import ascii
 from astropy.io import fits
 #import seaborn as sns
 from astropy.stats import sigma_clip
+from astropy.stats import signal_to_noise_oir_ccd
 import numpy as np
 import astropy.units as u
 #import astropy.units as u
@@ -15,6 +16,8 @@ import matplotlib.animation as animation
 from matplotlib.animation import FFMpegWriter
 from astropy.utils import iers
 from astropy.stats import histogram
+
+
 
 iers.Conf.iers_auto_url.set('ftp://cddis.gsfc.nasa.gov/pub/products/iers/finals2000A.all')
 
@@ -36,13 +39,10 @@ def go(fCat='GaiaCatalog0.ASC', \
     
     """Plotting the Co-ordinates in a Click-Animated Sequence"""
     
-   
-   
     #Objects with Flux > 5000
     # tDUM = Table.read('GaiaCatalog0.ASC', format='ascii.sextractor')
     tDUM = Table.read(fCat, format='ascii.sextractor')
    
-    
     # Let's set a conditional on whether our blob length column is present
     if colBlobLength in tDUM.colnames:
         vBlobLength = tDUM[colBlobLength]
@@ -52,17 +52,19 @@ def go(fCat='GaiaCatalog0.ASC', \
         colBlobLength = "%s_GEN" % (colBlobLength)
         tDUM[colBlobLength] = np.repeat(blobLenDefault, len(tDUM))
 
-
-
     # return
 
     #finding time from the fits header
-    #hdul = fits.open('V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit')
-    ##hdul.info()
+    SciImg = fits.open(fHeader)
+    Img=SciImg[0].data
     #myHeader = fits.getheader('V404_Cyg_adOFF-012_R_120sTest_MAPPED.fit')
-    myHeader = fits.getheader(fHeader)
+    myHeader = SciImg[0].header #fits.getheader(fHeader)
     time=myHeader['DATE-OBS']
 
+
+    # Look at the Fits Header to find the Alt Az of where the telescope thinks
+    # its pointing
+    
 
     # Let's promote the world coordinate system parsing out to here,
     # since we're going to need it whatever we do
@@ -109,7 +111,7 @@ def go(fCat='GaiaCatalog0.ASC', \
     myAz = np.asarray(MappedAltAz.az)
     myAlt = np.asarray(MappedAltAz.alt)
     
-    # replicate zahra's computation of the head of the arrow, 
+    # Replicate zahra's computation of the head of the arrow, 
     # but vectorially and only for the [bgood] items
     deltaX = tDUM['A_IMAGE']*np.cos(tDUM['THETA_IMAGE'])*blobSF
     deltaY = tDUM['A_IMAGE']*np.sin(tDUM['THETA_IMAGE'])*blobSF
@@ -151,9 +153,27 @@ def go(fCat='GaiaCatalog0.ASC', \
     Name=thisFits.split(".")[0]
 
     # Statistics Gathering
+    # SNR of the image
+    ImgMean=np.mean(Img)
+    ImgStd=np.std(Img)
+    print(ImgMean)
+    print(ImgStd)
+    SNR=np.log10(ImgMean/ImgStd)
+    print(SNR)
+    ExposureT=myHeader['EXPTIME']
+    
+    
+    SNRAstr=signal_to_noise_oir_ccd(t=ExposureT,source_eps, sky_eps, dark_eps, rd, npix=9)
+
+
+    
+    return
+    
 
     # initialize an empty table
     TableOfStats = Table()
+
+
     
     # let's specify a column name:
     sCol = 'FLUX_ISO'
@@ -176,15 +196,12 @@ def go(fCat='GaiaCatalog0.ASC', \
         TableOfStats[sCol+'_mu'] = [fdmean]*tDUM[sCol].unit
         TableOfStats[sCol+'_std'] = [fdStDev]*tDUM[sCol].unit
     
-
-    print(TableOfStats)
+   # Few things to Add to the Table after the processed Statistics
+    TableOfStats['Target_Object_Alt']=myHeader['ALT_OBJ']*u.deg
+    TableOfStats['Target_Object_Az']=myHeader['AZ_OBJ']*u.deg
+    TableOfStats['SNR']=(SNR)*u.dB    
     
-    #if colFilteredData in tDUM.colnames:
-    #    vfiltered_data = tDUM[colFilteredData]
-   # else:
-    #    print("programday_1 INFO - Porcessing Filtered Data" )
-     #   colFilteredData= "%s_GEN" % (colFilteredData)
-      #  tDUM[colFilteredData]=FilteredDataInput
+   
         
     #print tDUM[0:3]
     def fig5(fig):
@@ -206,7 +223,7 @@ def go(fCat='GaiaCatalog0.ASC', \
         yLabel6=plt.ylabel('Altitude')
         xLabel6=plt.xlabel('Azimuth')
         ax6=fig.add_subplot(111)
-        plt.axis([111,113,29,30])
+        #plt.axis([111,113,29,30])
         
         FnY = np.float(myHeader['NAXIS1'])
         FnX = np.float(myHeader['NAXIS2'])
@@ -262,7 +279,7 @@ def go(fCat='GaiaCatalog0.ASC', \
                 , color='c')
             blah = ax6.plot(myAzTailTrim[iRow], myAltTailTrim[iRow]\
                 , color='c', marker='o', markersize=2)
-
+        lala=ax6.plot(myHeader['AZ_OBJ'],myHeader['ALT_OBJ'], marker='o', markersize=5)
        
        
                 
@@ -275,27 +292,6 @@ def go(fCat='GaiaCatalog0.ASC', \
         #plt.show()
 
         #CONNECTIONS
-        """AZ12=np.hstack((myAz1,myAz2))
-        
-        for i in range(0, len(AZ12), 1):
-            if i % 2 ==0:
-                Con.append(myAz1[i]) 
-            else:
-                Con.append(myAz2[i])  
-        ALT12=np.hstack((myAlt1,myAlt2))
-        
-        for i in range(0, len(ALT12),1):
-            if i % 2 ==0:
-                Con1.append(myAlt1[i]) 
-            else:
-                Con1.append(myAlt2[i])  
-        def connectpoints(x,y,p1,p2):
-            x1, x2 = x[p1], x[p2]
-            y1, y2 = y[p1], y[p2]
-            ax6.plot([x1,x2],[y1,y2],'k-')
-        #for i in np.arange(0,len(Con)):
-           # connectpoints(Con,Con1,i-1,i)"""
-    
 
     print("INFO - time to execute RA->AltAz: %.3e seconds" % (systemTime.time()-tZero))
 
@@ -308,9 +304,5 @@ def go(fCat='GaiaCatalog0.ASC', \
     fig5(fig)
     plt.show()
     return TableOfStats
-        
-    #line_ani = animation.FuncAnimation(fig6, frames=None, event_source=None, interval=50, blit=True, repeat=False)
-    #line_ani.save('FigAni.mp4')
-    
 
     # File: slides.py
